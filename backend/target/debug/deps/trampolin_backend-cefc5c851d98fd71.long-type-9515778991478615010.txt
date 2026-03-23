@@ -1,0 +1,3 @@
+tower_http::trace::ResponseBody<Body, NeverClassifyEos<ServerErrorsFailureClass>>
+tower_http::trace::ResponseBody<Body, NeverClassifyEos<ServerErrorsFailureClass>>: Default
+tower_http::timeout::Timeout<tower_http::trace::Trace<Cors<Route>, SharedClassifier<ServerErrorsAsFailures>>>
