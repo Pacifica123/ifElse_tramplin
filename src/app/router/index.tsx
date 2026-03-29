@@ -14,7 +14,8 @@ import { MyApplicationsPage } from '@/features/applications/pages/MyApplications
 import { CuratorLoginPage } from '@/features/auth/pages/CuratorLoginPage';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { RegisterPage } from '@/features/auth/pages/RegisterPage';
-import { ContactsPage } from '@/features/contacts/pages/ContactsPage';
+import { ApplicantContactsPage } from '@/features/contacts/pages/ApplicantContactsPage';
+import { ApplicantPrivacyPage } from '@/features/privacy-settings/pages/ApplicantPrivacyPage';
 import { CuratorApplicantsPage } from '@/features/curator/pages/CuratorApplicantsPage';
 import { CuratorDashboardPage } from '@/features/curator/pages/CuratorDashboardPage';
 import { CuratorEmployersPage } from '@/features/curator/pages/CuratorEmployersPage';
@@ -26,7 +27,7 @@ import { HomePage } from '@/features/opportunities/pages/HomePage';
 import { EmployerOpportunitiesPage } from '@/features/opportunities/pages/EmployerOpportunitiesPage';
 import { OpportunityEditorPage } from '@/features/opportunities/pages/OpportunityEditorPage';
 import { OpportunityPage } from '@/features/opportunities/pages/OpportunityPage';
-import { PrivacySettingsPage } from '@/features/privacy-settings/pages/PrivacySettingsPage';
+import { EventsPage } from '@/features/opportunities/pages/EventsPage'; 
 
 const router = createBrowserRouter([
   {
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
       { path: paths.login, element: <LoginPage /> },
       { path: paths.register, element: <RegisterPage /> },
       { path: paths.curatorLogin, element: <CuratorLoginPage /> },
+      { path: paths.events, element: <EventsPage /> },
       { path: paths.opportunity(), element: <OpportunityPage /> },
       { path: paths.publicApplicant(), element: <PublicApplicantProfilePage /> },
     ],
@@ -53,8 +55,8 @@ const router = createBrowserRouter([
               { path: paths.applicantProfile, element: <ApplicantProfilePage /> },
               { path: paths.applicantApplications, element: <MyApplicationsPage /> },
               { path: paths.applicantFavorites, element: <FavoritesPage /> },
-              { path: paths.applicantContacts, element: <ContactsPage /> },
-              { path: paths.applicantPrivacy, element: <PrivacySettingsPage /> },
+              { path: paths.applicantContacts, element: <ApplicantContactsPage /> },
+              { path: paths.applicantPrivacy, element: <ApplicantPrivacyPage /> },
             ],
           },
         ],

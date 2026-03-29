@@ -1,0 +1,254 @@
+.page {
+  display: grid;
+  gap: 24px;
+}
+
+.hero {
+  border: 1px solid #cfd8e6;
+  border-radius: 28px;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+}
+
+.heroTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.title {
+  margin: 0;
+  font-size: 56px;
+  line-height: 1.04;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #1e293b;
+}
+
+.subtitle {
+  margin: 12px 0 0;
+  color: #667085;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.leftColumn,
+.rightColumn {
+  display: grid;
+  gap: 24px;
+}
+
+.card {
+  border: 1px solid #cfd8e6;
+  border-radius: 24px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.035);
+}
+
+.cardTitle {
+  margin: 0 0 10px;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.smallText {
+  margin: 0;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.toolbar {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.search {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.45;
+  padding: 12px 14px;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+  box-sizing: border-box;
+}
+
+.search:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+}
+
+.contactList {
+  display: grid;
+  gap: 16px;
+}
+
+.contactCard {
+  border: 1px solid #dde5f1;
+  border-radius: 20px;
+  padding: 18px;
+  background: #fff;
+}
+
+.contactHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.contactName {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.contactMeta {
+  color: #667085;
+  line-height: 1.5;
+}
+
+.block {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.blockLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #315fcb;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.contactActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.statusAccepted {
+  background: rgba(34, 197, 94, 0.12);
+  color: #166534;
+  border: 1px solid rgba(34, 197, 94, 0.22);
+}
+
+.statusPending {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+}
+
+.statusBlocked {
+  background: rgba(148, 163, 184, 0.14);
+  color: #475569;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.infoList,
+.summaryList {
+  display: grid;
+  gap: 14px;
+}
+
+.summaryItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.muted {
+  color: #667085;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.note {
+  margin: 0;
+  color: #667085;
+  line-height: 1.6;
+}
+
+.emptyState {
+  padding: 20px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 18px;
+  color: #667085;
+  text-align: center;
+  background: #fff;
+}
+
+@media (max-width: 1100px) {
+  .title {
+    font-size: 44px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .hero,
+  .card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .title {
+    font-size: 34px;
+  }
+
+  .contactHead {
+    flex-direction: column;
+  }
+}

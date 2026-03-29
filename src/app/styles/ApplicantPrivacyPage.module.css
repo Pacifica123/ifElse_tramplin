@@ -1,0 +1,168 @@
+.page {
+  display: grid;
+  gap: 24px;
+}
+
+.hero {
+  border: 1px solid #cfd8e6;
+  border-radius: 28px;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+}
+
+.heroTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.title {
+  margin: 0;
+  font-size: 56px;
+  line-height: 1.04;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #1e293b;
+}
+
+.subtitle {
+  margin: 12px 0 0;
+  color: #667085;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.leftColumn,
+.rightColumn {
+  display: grid;
+  gap: 24px;
+}
+
+.card {
+  border: 1px solid #cfd8e6;
+  border-radius: 24px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.035);
+}
+
+.cardTitle {
+  margin: 0 0 18px;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.switchList {
+  display: grid;
+  gap: 14px;
+}
+
+.switchRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid #d8e2f0;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.switchRow input {
+  margin-top: 4px;
+  width: 18px;
+  height: 18px;
+}
+
+.switchTitle {
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.switchText {
+  color: #667085;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.infoList,
+.summaryList {
+  display: grid;
+  gap: 14px;
+}
+
+.summaryItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.muted {
+  color: #667085;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.note {
+  margin: 0;
+  color: #667085;
+  line-height: 1.6;
+}
+
+@media (max-width: 1100px) {
+  .title {
+    font-size: 44px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .hero,
+  .card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .heroTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+
+  .title {
+    font-size: 34px;
+  }
+
+  .switchRow {
+    flex-direction: column;
+  }
+}
