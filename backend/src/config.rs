@@ -8,6 +8,7 @@ pub struct Settings {
     pub app: AppSettings,
     pub database: DatabaseSettings,
     pub http: HttpSettings,
+    pub auth: AuthSettings,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -31,6 +32,13 @@ pub struct DatabaseSettings {
 pub struct HttpSettings {
     pub body_limit_mb: usize,
     pub cors_allowed_origins: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AuthSettings {
+    pub jwt_secret: String,
+    pub access_token_ttl_minutes: i64,
+    pub refresh_token_ttl_days: i64,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]

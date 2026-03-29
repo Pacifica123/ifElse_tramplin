@@ -1,4 +1,5 @@
 use anyhow::Context;
+use sqlx::migrate::Migrator;
 use trampolin_backend::{
     app::build_app,
     config::Settings,
@@ -6,6 +7,9 @@ use trampolin_backend::{
     state::AppState,
     telemetry::init_tracing,
 };
+
+
+static MIGRATOR: Migrator = sqlx::migrate!();
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -16,6 +20,11 @@ async fn main() -> anyhow::Result<()> {
     let db = create_pool(&settings.database)
         .await
         .context("failed to connect to postgres")?;
+
+    MIGRATOR
+        .run(&db)
+        .await
+        .context("failed to run database migrations")?;
 
     let state = AppState::new(settings, db);
     let app = build_app(state);

@@ -6,18 +6,20 @@ use serde::Serialize;
 use serde_json::json;
 
 use crate::{
+    auth::handler::{login, register},
     error::{AppError, AppResult},
+    modules::me::handler::get_me,
     state::AppState,
 };
 
 pub fn api_router() -> Router<AppState> {
     Router::new()
         .route("/health", get(api_health))
-        .route("/auth/register", post(not_implemented))
-        .route("/auth/login", post(not_implemented))
+        .route("/auth/register", post(register))
+        .route("/auth/login", post(login))
         .route("/auth/refresh", post(not_implemented))
         .route("/auth/logout", post(not_implemented))
-        .route("/me", get(not_implemented))
+        .route("/me", get(get_me))
         .route(
             "/applicant-profile/me",
             get(not_implemented).patch(not_implemented),
