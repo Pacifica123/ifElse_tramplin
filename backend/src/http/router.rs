@@ -10,6 +10,27 @@ use crate::{
     error::{AppError, AppResult},
     modules::{
         applicant_profiles::handler::{get_current as get_current_applicant_profile, patch_current as update_current_applicant_profile},
+        applications::handler::{
+            create_application,
+            list_employer_applications_for_opportunity,
+            list_my_applications,
+            update_application_status,
+        },
+        admin::handler::create_curator,
+        curator::handler::{
+            get_applicant_profile_by_id as curator_get_applicant_profile_by_id,
+            get_employer_profile_by_id as curator_get_employer_profile_by_id,
+            get_opportunity_by_id as curator_get_opportunity_by_id,
+            get_verification_request_by_id,
+            list_applicant_profiles,
+            list_employer_profiles,
+            list_opportunities as curator_list_opportunities,
+            list_verification_requests,
+            review_verification_request,
+            update_applicant_profile_by_id as curator_update_applicant_profile_by_id,
+            update_employer_profile_by_id as curator_update_employer_profile_by_id,
+            update_opportunity_by_id as curator_update_opportunity_by_id,
+        },
         employer_dashboard::handler::{
             create_current_verification_request,
             get_current_verification_request,
@@ -52,16 +73,40 @@ pub fn api_router() -> Router<AppState> {
             get(get_public_opportunity_by_id).patch(update_own_opportunity),
         )
         .route("/opportunities/{id}/status", patch(update_own_opportunity_status))
-        .route("/opportunities/{id}/applications", post(not_implemented))
-        .route("/applications/me", get(not_implemented))
-        .route("/employer/opportunities/{id}/applications", get(not_implemented))
-        .route("/applications/{id}/status", patch(not_implemented))
+        .route("/opportunities/{id}/applications", post(create_application))
+        .route("/applications/me", get(list_my_applications))
+        .route(
+            "/employer/opportunities/{id}/applications",
+            get(list_employer_applications_for_opportunity),
+        )
+        .route("/applications/{id}/status", patch(update_application_status))
         .route("/tags", get(list_tags).post(not_implemented))
         .route(
             "/employer/verification-request",
             get(get_current_verification_request).post(create_current_verification_request),
         )
         .route("/employer/opportunities", get(list_own_opportunities))
+        .route("/curator/verification-requests", get(list_verification_requests))
+        .route(
+            "/curator/verification-requests/{id}",
+            get(get_verification_request_by_id).patch(review_verification_request),
+        )
+        .route("/curator/employer-profiles", get(list_employer_profiles))
+        .route(
+            "/curator/employer-profiles/{employerProfileId}",
+            get(curator_get_employer_profile_by_id).patch(curator_update_employer_profile_by_id),
+        )
+        .route("/curator/applicant-profiles", get(list_applicant_profiles))
+        .route(
+            "/curator/applicant-profiles/{applicantProfileId}",
+            get(curator_get_applicant_profile_by_id).patch(curator_update_applicant_profile_by_id),
+        )
+        .route("/curator/opportunities", get(curator_list_opportunities))
+        .route(
+            "/curator/opportunities/{id}",
+            get(curator_get_opportunity_by_id).patch(curator_update_opportunity_by_id),
+        )
+        .route("/admin/curators", post(create_curator))
 }
 
 #[derive(Debug, Serialize)]

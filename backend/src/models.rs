@@ -92,6 +92,16 @@ pub enum PublicationStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "application_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum ApplicationStatus {
+    Pending,
+    Accepted,
+    Rejected,
+    Reserve,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "tag_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum TagType {
@@ -145,6 +155,27 @@ pub struct EmployerProfileRow {
     pub verification_status: EmployerVerificationStatus,
     pub verification_comment: Option<String>,
     pub verified_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+
+#[derive(Debug, Clone, FromRow)]
+pub struct CuratorProfileRow {
+    pub id: i64,
+    pub user_id: i64,
+    pub full_name: String,
+    pub position: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct ApplicationRow {
+    pub id: i64,
+    pub opportunity_id: i64,
+    pub applicant_profile_id: i64,
+    pub status: ApplicationStatus,
+    pub cover_letter: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
