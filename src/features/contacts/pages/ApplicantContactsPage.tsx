@@ -102,7 +102,7 @@ export function ApplicantContactsPage() {
         <div className={styles.heroTop}>
           <div>
             <h1 className={styles.title}>Контакты и нетворкинг</h1>
-            <p className={styles.subtitle}>Список контактов пользователя.</p>
+
           </div>
         </div>
       </section>
@@ -113,9 +113,7 @@ export function ApplicantContactsPage() {
             <div className={styles.toolbar}>
               <div>
                 <h2 className={styles.cardTitle}>Мои контакты</h2>
-                <p className={styles.smallText}>
-                  Можно искать людей, смотреть их карьерные интересы и управлять статусом связи.
-                </p>
+
               </div>
 
               <input

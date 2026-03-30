@@ -75,7 +75,6 @@ export function ApplicantPrivacyPage() {
         <div className={styles.heroTop}>
           <div>
             <h1 className={styles.title}>Настройки приватности</h1>
-            <p className={styles.subtitle}>Видимость профиля, резюме и откликов.</p>
           </div>
 
           <div className={styles.actions}>

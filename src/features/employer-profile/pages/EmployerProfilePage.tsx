@@ -14,6 +14,7 @@ import {
   getEmployerVerificationRequest,
 } from '@/shared/api/employerDashboard';
 import { getErrorMessage } from '@/shared/api/errors';
+import { CITY_OPTIONS, getCityNameById } from '@/shared/config/locations';
 
 interface EmployerProfileDraft {
   companyName: string;
@@ -203,7 +204,7 @@ export function EmployerProfilePage() {
         <div className={styles.heroTop}>
           <div>
             <h1 className={styles.title}>Профиль работодателя</h1>
-            <p className={styles.subtitle}>Страница уже читает и сохраняет данные через backend API.</p>
+            <p className={styles.subtitle}>Заполните описание компании, ссылки и данные для верификации.</p>
           </div>
 
           <div className={styles.actions}>
@@ -278,13 +279,19 @@ export function EmployerProfilePage() {
                 </label>
 
                 <label className={styles.field}>
-                  <span>City ID</span>
-                  <input
+                  <span>Город</span>
+                  <select
                     value={draft.cityId}
                     onChange={(e) => updateField('cityId', e.target.value)}
                     disabled={!isEditing}
-                    placeholder="Например, 1"
-                  />
+                  >
+                    <option value="">Не выбран</option>
+                    {CITY_OPTIONS.map((city) => (
+                      <option key={city.id} value={city.id}>
+                        {city.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
             </div>
@@ -407,8 +414,8 @@ export function EmployerProfilePage() {
               </div>
 
               <div>
-                <div className={styles.muted}>City ID</div>
-                <span>{draft.cityId || '—'}</span>
+                <div className={styles.muted}>Город</div>
+                <span>{getCityNameById(draft.cityId)}</span>
               </div>
 
               <div>

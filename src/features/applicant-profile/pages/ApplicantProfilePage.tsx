@@ -188,10 +188,7 @@ export function ApplicantProfilePage() {
           }}
         >
           <div>
-            <h1 style={{ margin: 0, fontSize: 56, lineHeight: 1.02 }}>Профиль соискателя</h1>
-            <p style={{ ...mutedStyle, marginTop: 10, fontSize: 18 }}>
-              Страница уже подключена к backend: читает и сохраняет <code>/applicant-profile/me</code>.
-            </p>
+            <h1 style={{ margin: 0, fontSize: 42, lineHeight: 1.02 }}>Профиль соискателя</h1>
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

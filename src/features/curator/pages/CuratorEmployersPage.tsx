@@ -3,17 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getErrorMessage } from '@/shared/api/errors';
 import { getCuratorEmployers, updateCuratorEmployer, type CuratorEmployer } from '@/shared/api/curator';
 import { CuratorStubNotice } from '../components/CuratorStubNotice';
+import { getCityNameById } from '@/shared/config/locations';
 
 const statusLabels: Record<CuratorEmployer['verificationStatus'], string> = {
   pending: 'На проверке',
   verified: 'Верифицирован',
   rejected: 'Отклонён',
 };
-
-function formatDate(value?: string | null) {
-  if (!value) return '—';
-  return new Date(value).toLocaleString('ru-RU');
-}
 
 function EmployerCard({
   item,
@@ -22,27 +18,28 @@ function EmployerCard({
 }: {
   item: CuratorEmployer;
   isSaving: boolean;
-  onSave: (payload: { verificationStatus: CuratorEmployer['verificationStatus']; verificationComment: string; moderationNote: string }) => void;
+  onSave: (payload: { verificationStatus: CuratorEmployer['verificationStatus']; verificationComment: string }) => void;
 }) {
   const [verificationComment, setVerificationComment] = useState(item.verificationComment ?? '');
-  const [moderationNote, setModerationNote] = useState(item.moderationNote ?? '');
 
   return (
     <article style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 22, padding: 22, display: 'grid', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ margin: 0 }}>{item.companyName}</h2>
-          <div style={{ color: '#667085', marginTop: 8 }}>{item.industry} · {item.city}</div>
+          <div style={{ color: '#667085', marginTop: 8 }}>{item.industry || 'Сфера не указана'} · {getCityNameById(item.cityId)}</div>
         </div>
         <span className="btn btn--secondary" style={{ cursor: 'default' }}>{statusLabels[item.verificationStatus]}</span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-        <div><strong>Владелец:</strong><br />{item.ownerName}</div>
-        <div><strong>E-mail:</strong><br />{item.ownerEmail}</div>
-        <div><strong>Сайт:</strong><br />{item.websiteUrl || '—'}</div>
-        <div><strong>Обновлено:</strong><br />{formatDate(item.updatedAt)}</div>
+        <div><strong>ID профиля:</strong><br />#{item.id}</div>
+        <div><strong>Website:</strong><br />{item.websiteUrl || '—'}</div>
+        <div><strong>Видео:</strong><br />{item.promoVideoUrl || '—'}</div>
+        <div><strong>Верифицирован:</strong><br />{item.verifiedAt ? new Date(item.verifiedAt).toLocaleString('ru-RU') : '—'}</div>
       </div>
+
+      {item.shortDescription ? <p style={{ margin: 0, color: '#475467' }}>{item.shortDescription}</p> : null}
 
       <label className="field">
         <span>Комментарий к верификации</span>
@@ -50,26 +47,15 @@ function EmployerCard({
           rows={3}
           value={verificationComment}
           onChange={(event) => setVerificationComment(event.target.value)}
-          style={{ border: '1px solid #d9e0ea', borderRadius: 16, padding: 14, resize: 'vertical' }}
         />
       </label>
 
-      <label className="field">
-        <span>Заметка куратора</span>
-        <textarea
-          rows={3}
-          value={moderationNote}
-          onChange={(event) => setModerationNote(event.target.value)}
-          style={{ border: '1px solid #d9e0ea', borderRadius: 16, padding: 14, resize: 'vertical' }}
-        />
-      </label>
-
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center'  }}>
         <button
           className="btn"
           type="button"
           disabled={isSaving}
-          onClick={() => onSave({ verificationStatus: 'verified', verificationComment, moderationNote })}
+          onClick={() => onSave({ verificationStatus: 'verified', verificationComment })}
         >
           Подтвердить
         </button>
@@ -77,7 +63,7 @@ function EmployerCard({
           className="btn btn--secondary"
           type="button"
           disabled={isSaving}
-          onClick={() => onSave({ verificationStatus: 'pending', verificationComment, moderationNote })}
+          onClick={() => onSave({ verificationStatus: 'pending', verificationComment })}
         >
           Вернуть на проверку
         </button>
@@ -85,7 +71,7 @@ function EmployerCard({
           className="btn btn--secondary"
           type="button"
           disabled={isSaving}
-          onClick={() => onSave({ verificationStatus: 'rejected', verificationComment, moderationNote })}
+          onClick={() => onSave({ verificationStatus: 'rejected', verificationComment })}
         >
           Отклонить
         </button>
@@ -101,7 +87,7 @@ export function CuratorEmployersPage() {
 
   const employersQuery = useQuery({
     queryKey: ['curator-employers'],
-    queryFn: getCuratorEmployers,
+    queryFn: () => getCuratorEmployers(),
   });
 
   const updateMutation = useMutation({
@@ -120,7 +106,11 @@ export function CuratorEmployersPage() {
       const matchesStatus = statusFilter === 'all' ? true : item.verificationStatus === statusFilter;
       const matchesSearch = !needle
         ? true
-        : [item.companyName, item.ownerName, item.ownerEmail, item.industry, item.city].join(' ').toLowerCase().includes(needle);
+        : [item.companyName, item.industry, item.websiteUrl, item.shortDescription]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(needle);
       return matchesStatus && matchesSearch;
     });
   }, [employersQuery.data, search, statusFilter]);
@@ -137,19 +127,21 @@ export function CuratorEmployersPage() {
     <div style={{ display: 'grid', gap: 20 }}>
       <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 14 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 42 }}>Модерация работодателей</h1>
-          <p style={{ color: '#667085', marginTop: 10 }}>
-            Проверка карточек работодателей, комментариев и статуса верификации.
+          <h1 style={{ margin: 0, fontSize: 42, textAlign:'center' }}>Модерация работодателей</h1>
+          <p style={{ color: '#667085', marginTop: 10, textAlign:'center' }}>
+            Проверка карточек работодателей и смена статуса верификации.
           </p>
         </div>
-        <CuratorStubNotice />
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Поиск по компании, владельцу, e-mail"
-            style={{ minWidth: 320, border: '1px solid #d9e0ea', borderRadius: 14, padding: '12px 14px' }}
-          />
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center'  }}>
+          <label className="field" style={{ minWidth: 720, margin: 0 }}>
+            <span>Поиск</span>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Поиск по компании, сфере, сайту"
+            />
+          </label>
           {(['all', 'pending', 'verified', 'rejected'] as const).map((status) => (
             <button
               key={status}

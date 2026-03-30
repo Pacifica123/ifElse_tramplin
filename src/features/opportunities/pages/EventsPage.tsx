@@ -154,8 +154,7 @@ export function EventsPage() {
         <div className={styles.heroBadge}>Трамплин · мероприятия</div>
         <h1 className={styles.title}>Карьерные мероприятия</h1>
         <p className={styles.subtitle}>
-          Эта страница теперь берёт события из backend-каталога возможностей с фильтром{' '}
-          <code>opportunityType=event</code>.
+          Подборка карьерных мероприятий с фильтрами по формату, городу и ключевым словам.
         </p>
 
         <div className={styles.filters}>
@@ -190,7 +189,7 @@ export function EventsPage() {
       <section className={styles.summary}>
         <div className={styles.summaryCard}>
           <div className={styles.summaryLabel}>Найдено событий</div>
-          <div className={styles.summaryValue}>{filtered.length}</div>
+          <div className={styles.summaryText}>{filtered.length}</div>
         </div>
 
         <div className={styles.summaryCard}>

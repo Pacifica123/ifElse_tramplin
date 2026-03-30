@@ -1,15 +1,18 @@
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/app/providers/AuthProvider';
 import { paths } from '@/app/router/paths';
 import { getErrorMessage } from '@/shared/api/errors';
+import { applyToOpportunity } from '@/shared/api/applications';
 import { getPublicOpportunityById, type OpportunityType, type WorkFormat } from '@/shared/api/opportunities';
 import { getTags } from '@/shared/api/tags';
 
 const typeLabels: Record<OpportunityType, string> = {
   internship: 'Стажировка',
   vacancy: 'Вакансия',
-  mentoring: 'Менторская программа',
-  event: 'Карьерное мероприятие',
+  mentoring: 'Менторство',
+  event: 'Мероприятие',
 };
 
 const formatLabels: Record<WorkFormat, string> = {
@@ -18,25 +21,26 @@ const formatLabels: Record<WorkFormat, string> = {
   remote: 'Удалённо',
 };
 
+function formatSalary(from?: number | null, to?: number | null) {
+  if (from == null && to == null) return 'Не указано';
+  if (from != null && to != null) return `${from.toLocaleString('ru-RU')}–${to.toLocaleString('ru-RU')} ₽`;
+  if (from != null) return `от ${from.toLocaleString('ru-RU')} ₽`;
+  return `до ${to?.toLocaleString('ru-RU')} ₽`;
+}
+
 function formatDate(value?: string | null) {
   if (!value) return '—';
   return new Date(value).toLocaleString('ru-RU');
 }
 
-function formatSalary(salaryFrom?: number | null, salaryTo?: number | null) {
-  if (salaryFrom == null && salaryTo == null) return 'Не указано';
-  if (salaryFrom != null && salaryTo != null) {
-    return `${salaryFrom.toLocaleString('ru-RU')}–${salaryTo.toLocaleString('ru-RU')} ₽`;
-  }
-  if (salaryFrom != null) return `от ${salaryFrom.toLocaleString('ru-RU')} ₽`;
-  return `до ${salaryTo?.toLocaleString('ru-RU')} ₽`;
-}
-
 export function OpportunityPage() {
   const { id } = useParams();
+  const { isAuthenticated, user } = useAuth();
+  const [coverLetter, setCoverLetter] = useState('');
+  const [success, setSuccess] = useState<string | null>(null);
 
   const opportunityQuery = useQuery({
-    queryKey: ['public-opportunity', id],
+    queryKey: ['opportunity', id],
     queryFn: () => getPublicOpportunityById(id ?? ''),
     enabled: Boolean(id),
   });
@@ -46,25 +50,31 @@ export function OpportunityPage() {
     queryFn: getTags,
   });
 
+  const applyMutation = useMutation({
+    mutationFn: () => applyToOpportunity(id!, { coverLetter: coverLetter.trim() || undefined }),
+    onSuccess: () => {
+      setSuccess('Отклик отправлен. Теперь его можно увидеть в разделе «Мои отклики».');
+      setCoverLetter('');
+    },
+  });
+
+  const tagsById = useMemo(() => new Map((tagsQuery.data ?? []).map((tag) => [tag.id, tag.name])), [tagsQuery.data]);
+
   if (!id) {
     return <div>Не передан id возможности.</div>;
   }
 
   if (opportunityQuery.isLoading) {
-    return <div>Загружаем карточку возможности…</div>;
+    return <div>Загружаем карточку…</div>;
   }
 
-  if (opportunityQuery.isError) {
+  if (opportunityQuery.isError || !opportunityQuery.data) {
     return <div>Не удалось загрузить карточку: {getErrorMessage(opportunityQuery.error)}</div>;
   }
 
   const item = opportunityQuery.data;
-  if (!item) {
-    return <div>Карточка возможности не найдена.</div>;
-  }
-
-  const tagsById = new Map((tagsQuery.data ?? []).map((tag) => [tag.id, tag.name]));
   const contactInfo = item.contactInfo ?? {};
+  const canApply = isAuthenticated && user?.role === 'applicant' && item.opportunityType !== 'event';
 
   return (
     <div style={{ display: 'grid', gap: 20 }}>
@@ -161,6 +171,33 @@ export function OpportunityPage() {
             <div><strong>Telegram:</strong> {String(contactInfo.telegram ?? '—')}</div>
             <div><strong>Контактное лицо:</strong> {String(contactInfo.contactPerson ?? '—')}</div>
           </article>
+
+          {canApply ? (
+            <article style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 12 }}>
+              <h2 style={{ margin: 0 }}>Откликнуться</h2>
+              <p style={{ margin: 0, color: '#667085' }}>
+                Эта кнопка подключена к <code>POST /opportunities/{'{id}'}/applications</code>.
+              </p>
+              <textarea
+                rows={5}
+                value={coverLetter}
+                onChange={(event) => setCoverLetter(event.target.value)}
+                placeholder="Короткое сопроводительное письмо"
+                style={{ border: '1px solid #d9e0ea', borderRadius: 16, padding: 14, resize: 'vertical' }}
+              />
+              <button className="btn" type="button" onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}>
+                {applyMutation.isPending ? 'Отправляем…' : 'Откликнуться'}
+              </button>
+              {success ? <p style={{ color: '#027a48', margin: 0 }}>{success}</p> : null}
+              {applyMutation.isError ? <p style={{ color: '#b42318', margin: 0 }}>{getErrorMessage(applyMutation.error)}</p> : null}
+            </article>
+          ) : null}
+
+          {!isAuthenticated ? (
+            <article style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24 }}>
+              Чтобы откликнуться, нужно войти в аккаунт соискателя.
+            </article>
+          ) : null}
         </aside>
       </section>
     </div>

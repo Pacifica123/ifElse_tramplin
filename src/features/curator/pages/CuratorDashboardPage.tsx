@@ -1,8 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { paths } from '@/app/router/paths';
 import { getErrorMessage } from '@/shared/api/errors';
-import { getCuratorDashboard, resetCuratorWorkspace } from '@/shared/api/curator';
+import { getCuratorDashboard } from '@/shared/api/curator';
 import { CuratorStubNotice } from '../components/CuratorStubNotice';
 
 function StatCard({ label, value }: { label: string; value: number }) {
@@ -11,14 +11,14 @@ function StatCard({ label, value }: { label: string; value: number }) {
       style={{
         background: '#fff',
         border: '1px solid #d9e0ea',
-        borderRadius: 22,
+        borderRadius: 24,
         padding: 20,
         display: 'grid',
-        gap: 10,
+        gap: 6,
       }}
     >
-      <div style={{ color: '#667085' }}>{label}</div>
-      <div style={{ fontSize: 34, fontWeight: 800 }}>{value}</div>
+      <span style={{ color: '#667085' }}>{label}</span>
+      <strong style={{ fontSize: 40 }}>{value}</strong>
     </article>
   );
 }
@@ -29,26 +29,13 @@ function formatDate(value?: string | null) {
 }
 
 export function CuratorDashboardPage() {
-  const queryClient = useQueryClient();
-
   const dashboardQuery = useQuery({
     queryKey: ['curator-dashboard'],
     queryFn: getCuratorDashboard,
   });
 
-  const resetMutation = useMutation({
-    mutationFn: resetCuratorWorkspace,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['curator-dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['curator-employers'] });
-      queryClient.invalidateQueries({ queryKey: ['curator-applicants'] });
-      queryClient.invalidateQueries({ queryKey: ['curator-opportunities'] });
-      queryClient.invalidateQueries({ queryKey: ['curator-verification-requests'] });
-    },
-  });
-
   if (dashboardQuery.isLoading) {
-    return <div>Загружаем кураторский дашборд…</div>;
+    return <div>Загружаем дашборд…</div>;
   }
 
   if (dashboardQuery.isError || !dashboardQuery.data) {
@@ -72,32 +59,23 @@ export function CuratorDashboardPage() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: 42 }}>Панель куратора</h1>
-          <p style={{ color: '#667085', marginTop: 10, maxWidth: 760 }}>
-            Здесь собрана сводка по работодателям, соискателям, публикациям и очереди верификации.
-          </p>
+          <h1 style={{ margin: 0, fontSize: 42, textAlign: 'center' }}>Панель куратора</h1>
         </div>
-
-        <button className="btn btn--secondary" type="button" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending}>
-          {resetMutation.isPending ? 'Сбрасываем…' : 'Сбросить демо-данные'}
-        </button>
       </section>
 
-      <CuratorStubNotice />
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16,justifyContent: 'center', textAlign: 'center'  }}>
         <StatCard label="Работодателей" value={data.employersTotal} />
         <StatCard label="Ожидают верификацию" value={data.verificationPending} />
-        <StatCard label="Соискателей на проверке" value={data.applicantsPending} />
+        <StatCard label="Соискателей с неп. профилем" value={data.applicantsPending} />
         <StatCard label="Возможностей на модерации" value={data.opportunitiesPending} />
       </section>
 
       <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(280px, 0.8fr)', gap: 20 }}>
         <article style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex',  gap: 12, flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center'  }}>
             <div>
-              <h2 style={{ margin: 0 }}>Последние запросы на верификацию</h2>
-              <p style={{ color: '#667085', margin: '8px 0 0' }}>Быстрый обзор очереди работодателей.</p>
+              <h2 style={{ margin: 0,  textAlign: 'center'  }}>Последние запросы на верификацию</h2>
             </div>
             <Link className="btn btn--secondary" to={paths.curatorVerification}>
               Открыть очередь
@@ -131,9 +109,6 @@ export function CuratorDashboardPage() {
           <Link className="btn btn--secondary" to={paths.curatorApplicants}>Соискатели</Link>
           <Link className="btn btn--secondary" to={paths.curatorOpportunities}>Возможности</Link>
           <div style={{ color: '#667085', lineHeight: 1.5, marginTop: 4 }}>
-            Подходящая точка для куратора сейчас: пройти очередь верификации, затем проверить карточки работодателей и возможности на модерации.
-          </div>
-          <div style={{ fontSize: 14, color: '#667085' }}>
             Проверено: работодатели — {data.employersVerified}, отклонённых возможностей — {data.opportunitiesRejected}.
           </div>
         </article>

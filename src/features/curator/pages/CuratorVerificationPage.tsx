@@ -44,7 +44,7 @@ function VerificationCard({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
         <div><strong>Подан:</strong><br />{formatDate(item.submittedAt)}</div>
         <div><strong>Рассмотрен:</strong><br />{formatDate(item.reviewedAt)}</div>
-        <div><strong>Кем:</strong><br />{item.reviewedByName ?? '—'}</div>
+        <div><strong>ID куратора:</strong><br />{item.reviewedByCuratorId ?? '—'}</div>
       </div>
 
       <label className="field">
@@ -57,7 +57,7 @@ function VerificationCard({
         />
       </label>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center'  }}>
         <button className="btn" type="button" disabled={isPending} onClick={() => onReview('approved', comment)}>
           Одобрить
         </button>
@@ -83,7 +83,7 @@ export function CuratorVerificationPage() {
 
   const reviewMutation = useMutation({
     mutationFn: ({ requestId, status, comment }: { requestId: number; status: CuratorVerificationStatus; comment: string }) =>
-      reviewCuratorVerificationRequest(requestId, { status, comment, reviewedByName: 'Куратор платформы' }),
+      reviewCuratorVerificationRequest(requestId, { status, comment }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['curator-verification-requests'] });
       queryClient.invalidateQueries({ queryKey: ['curator-dashboard'] });
@@ -108,13 +108,11 @@ export function CuratorVerificationPage() {
     <div style={{ display: 'grid', gap: 20 }}>
       <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 14 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 42 }}>Запросы на верификацию</h1>
-          <p style={{ color: '#667085', marginTop: 10 }}>
-            Здесь куратор принимает решение по работодателям. Пока это локальная очередь-заглушка.
-          </p>
+          <h1 style={{ margin: 0, fontSize: 42, textAlign: 'center' }}>Запросы на верификацию</h1>
+
         </div>
-        <CuratorStubNotice />
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' , justifyContent: 'center', textAlign: 'center' }}>
           {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
             <button
               key={status}

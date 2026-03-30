@@ -1,13 +1,17 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { type CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { paths } from '@/app/router/paths';
 import { getErrorMessage } from '@/shared/api/errors';
+import { CITY_OPTIONS, getCityNameById } from '@/shared/config/locations';
 import {
   createOpportunity,
+  getPublicOpportunityById,
+  updateOpportunity,
   type EmploymentType,
   type Level,
   type OpportunityCreatePayload,
+  type OpportunityDetails,
   type OpportunityType,
   type WorkFormat,
 } from '@/shared/api/opportunities';
@@ -45,7 +49,7 @@ const initialDraft: EditorDraft = {
   employmentType: 'part_time',
   level: 'intern',
   cityId: '1',
-  addressId: '1',
+  addressId: '',
   salaryFrom: '',
   salaryTo: '',
   expiresAt: '',
@@ -59,6 +63,34 @@ const initialDraft: EditorDraft = {
   tagIds: [],
 };
 
+const sectionStyle: CSSProperties = {
+  background: '#fff',
+  border: '1px solid #d9e0ea',
+  borderRadius: 24,
+  padding: 24,
+  display: 'grid',
+  gap: 16,
+};
+
+const grid2Style: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: 16,
+};
+
+const grid4Style: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+  gap: 16,
+};
+
+function toInputDateTime(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 function toIsoOrNull(value: string) {
   if (!value.trim()) return null;
   return new Date(value).toISOString();
@@ -71,6 +103,32 @@ function parseLines(value: string) {
     .filter(Boolean);
 }
 
+function toDraft(item: OpportunityDetails): EditorDraft {
+  const contactInfo = item.contactInfo ?? {};
+  return {
+    title: item.title,
+    shortDescription: item.shortDescription ?? '',
+    fullDescription: item.fullDescription ?? '',
+    opportunityType: item.opportunityType,
+    workFormat: item.workFormat,
+    employmentType: item.employmentType ?? '',
+    level: item.level ?? '',
+    cityId: item.cityId?.toString() ?? '1',
+    addressId: item.addressId?.toString() ?? '',
+    salaryFrom: item.salaryFrom?.toString() ?? '',
+    salaryTo: item.salaryTo?.toString() ?? '',
+    expiresAt: toInputDateTime(item.expiresAt),
+    eventDate: toInputDateTime(item.eventDate),
+    contactEmail: String(contactInfo.email ?? ''),
+    contactPhone: String(contactInfo.phone ?? ''),
+    contactTelegram: String(contactInfo.telegram ?? ''),
+    contactPerson: String(contactInfo.contactPerson ?? ''),
+    resourceLinksText: item.resourceLinks.join('\n'),
+    mediaText: item.media.join('\n'),
+    tagIds: item.tagIds,
+  };
+}
+
 function buildPayload(draft: EditorDraft): OpportunityCreatePayload {
   return {
     title: draft.title.trim(),
@@ -81,13 +139,11 @@ function buildPayload(draft: EditorDraft): OpportunityCreatePayload {
     employmentType: draft.employmentType || null,
     level: draft.level || null,
     cityId: draft.workFormat === 'remote' ? Number(draft.cityId) : null,
-    addressId: draft.workFormat === 'remote' ? null : Number(draft.addressId),
+    addressId: draft.workFormat === 'remote' ? null : draft.addressId.trim() ? Number(draft.addressId) : null,
     salaryFrom: draft.salaryFrom.trim() ? Number(draft.salaryFrom) : null,
     salaryTo: draft.salaryTo.trim() ? Number(draft.salaryTo) : null,
-    expiresAt:
-      draft.opportunityType === 'event' ? null : toIsoOrNull(draft.expiresAt),
-    eventDate:
-      draft.opportunityType === 'event' ? toIsoOrNull(draft.eventDate) : null,
+    expiresAt: draft.opportunityType === 'event' ? null : toIsoOrNull(draft.expiresAt),
+    eventDate: draft.opportunityType === 'event' ? toIsoOrNull(draft.eventDate) : null,
     tagIds: draft.tagIds,
     contactInfo: {
       email: draft.contactEmail.trim(),
@@ -103,6 +159,7 @@ function buildPayload(draft: EditorDraft): OpportunityCreatePayload {
 export function OpportunityEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isEditMode = Boolean(id);
   const [draft, setDraft] = useState<EditorDraft>(initialDraft);
 
@@ -111,9 +168,31 @@ export function OpportunityEditorPage() {
     queryFn: getTags,
   });
 
+  const detailsQuery = useQuery({
+    queryKey: ['opportunity', 'editor', id],
+    queryFn: () => getPublicOpportunityById(id ?? ''),
+    enabled: Boolean(id),
+  });
+
+  useEffect(() => {
+    if (detailsQuery.data) {
+      setDraft(toDraft(detailsQuery.data));
+    }
+  }, [detailsQuery.data]);
+
   const createMutation = useMutation({
     mutationFn: createOpportunity,
-    onSuccess: (created) => {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employer-opportunities'] });
+      navigate(paths.employerOpportunities);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: OpportunityCreatePayload) => updateOpportunity(id!, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employer-opportunities'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunity', id] });
       navigate(paths.employerOpportunities);
     },
   });
@@ -138,84 +217,84 @@ export function OpportunityEditorPage() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isEditMode) return;
-    createMutation.mutate(buildPayload(draft));
+    const payload = buildPayload(draft);
+    if (isEditMode) {
+      updateMutation.mutate(payload);
+      return;
+    }
+    createMutation.mutate(payload);
   };
 
-  if (isEditMode) {
-    return (
-      <div style={{ display: 'grid', gap: 16 }}>
-        <h1>{pageTitle}</h1>
-        <p>
-          Backend уже умеет обновлять возможность через <code>PATCH /opportunities/{'{id}'}</code>,
-          но отдельной ручки для загрузки своей полной карточки по id на фронт пока нет. Поэтому сейчас
-          на фронте подключено только создание новой возможности.
-        </p>
-        <Link className="btn" to={paths.employerOpportunities}>
-          Вернуться к списку
-        </Link>
-      </div>
-    );
+  if (isEditMode && detailsQuery.isLoading) {
+    return <div>Загружаем карточку для редактирования…</div>;
+  }
+
+  if (isEditMode && detailsQuery.isError) {
+    return <div>Не удалось загрузить карточку: {getErrorMessage(detailsQuery.error)}</div>;
   }
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 20 }}>
-      <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24 }}>
-        <h1 style={{ marginTop: 0 }}>{pageTitle}</h1>
-        <p style={{ color: '#667085' }}>
-          Эта форма уже подключена к <code>POST /opportunities</code>. Важно: backend разрешит создание
-          только верифицированному работодателю.
+      <section style={sectionStyle}>
+        <h1 style={{ margin: 0, fontSize: 42 }}>{pageTitle}</h1>
+        <p style={{ color: '#667085', margin: 0 }}>
+          Заполните описание, формат, контакты и теги, чтобы опубликовать новую карточку возможности.
         </p>
       </section>
 
-      <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
-          <label>
-            <div>Заголовок</div>
-            <input value={draft.title} onChange={(e) => updateField('title', e.target.value)} style={{ width: '100%', minHeight: 44 }} />
+      <section style={sectionStyle}>
+        <div style={grid2Style}>
+          <label className="field">
+            <span>Заголовок</span>
+            <input value={draft.title} onChange={(e) => updateField('title', e.target.value)} />
           </label>
-          <label>
-            <div>Тип</div>
-            <select value={draft.opportunityType} onChange={(e) => updateField('opportunityType', e.target.value as OpportunityType)} style={{ width: '100%', minHeight: 44 }}>
+
+          <label className="field">
+            <span>Тип</span>
+            <select value={draft.opportunityType} onChange={(e) => updateField('opportunityType', e.target.value as OpportunityType)}>
               <option value="internship">Стажировка</option>
               <option value="vacancy">Вакансия</option>
               <option value="mentoring">Менторство</option>
               <option value="event">Мероприятие</option>
             </select>
           </label>
-          <label>
-            <div>Короткое описание</div>
-            <textarea value={draft.shortDescription} onChange={(e) => updateField('shortDescription', e.target.value)} style={{ width: '100%', minHeight: 90 }} />
+
+          <label className="field">
+            <span>Короткое описание</span>
+            <textarea value={draft.shortDescription} onChange={(e) => updateField('shortDescription', e.target.value)} />
           </label>
-          <label>
-            <div>Полное описание</div>
-            <textarea value={draft.fullDescription} onChange={(e) => updateField('fullDescription', e.target.value)} style={{ width: '100%', minHeight: 90 }} />
+
+          <label className="field">
+            <span>Полное описание</span>
+            <textarea value={draft.fullDescription} onChange={(e) => updateField('fullDescription', e.target.value)} />
           </label>
         </div>
       </section>
 
-      <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16 }}>
-          <label>
-            <div>Формат</div>
-            <select value={draft.workFormat} onChange={(e) => updateField('workFormat', e.target.value as WorkFormat)} style={{ width: '100%', minHeight: 44 }}>
+      <section style={sectionStyle}>
+        <div style={grid4Style}>
+          <label className="field">
+            <span>Формат</span>
+            <select value={draft.workFormat} onChange={(e) => updateField('workFormat', e.target.value as WorkFormat)}>
               <option value="remote">Удалённо</option>
               <option value="office">Офис</option>
               <option value="hybrid">Гибрид</option>
             </select>
           </label>
-          <label>
-            <div>Тип занятости</div>
-            <select value={draft.employmentType} onChange={(e) => updateField('employmentType', e.target.value as EmploymentType | '')} style={{ width: '100%', minHeight: 44 }}>
+
+          <label className="field">
+            <span>Тип занятости</span>
+            <select value={draft.employmentType} onChange={(e) => updateField('employmentType', e.target.value as EmploymentType | '')}>
               <option value="">Не указывать</option>
-              <option value="full_time">Full-time</option>
-              <option value="part_time">Part-time</option>
-              <option value="project">Project</option>
+              <option value="full_time">Полная занятость</option>
+              <option value="part_time">Частичная занятость</option>
+              <option value="project">Проектная работа</option>
             </select>
           </label>
-          <label>
-            <div>Уровень</div>
-            <select value={draft.level} onChange={(e) => updateField('level', e.target.value as Level | '')} style={{ width: '100%', minHeight: 44 }}>
+
+          <label className="field">
+            <span>Уровень</span>
+            <select value={draft.level} onChange={(e) => updateField('level', e.target.value as Level | '')}>
               <option value="">Не указывать</option>
               <option value="intern">Intern</option>
               <option value="junior">Junior</option>
@@ -223,104 +302,148 @@ export function OpportunityEditorPage() {
               <option value="senior">Senior</option>
             </select>
           </label>
-          <label>
-            <div>{draft.workFormat === 'remote' ? 'City ID' : 'Address ID'}</div>
-            <input
-              value={draft.workFormat === 'remote' ? draft.cityId : draft.addressId}
-              onChange={(e) =>
-                draft.workFormat === 'remote'
-                  ? updateField('cityId', e.target.value)
-                  : updateField('addressId', e.target.value)
-              }
-              style={{ width: '100%', minHeight: 44 }}
-            />
-          </label>
-          <label>
-            <div>Зарплата от</div>
-            <input value={draft.salaryFrom} onChange={(e) => updateField('salaryFrom', e.target.value)} style={{ width: '100%', minHeight: 44 }} />
-          </label>
-          <label>
-            <div>Зарплата до</div>
-            <input value={draft.salaryTo} onChange={(e) => updateField('salaryTo', e.target.value)} style={{ width: '100%', minHeight: 44 }} />
-          </label>
-          {draft.opportunityType === 'event' ? (
-            <label>
-              <div>Дата мероприятия</div>
-              <input type="datetime-local" value={draft.eventDate} onChange={(e) => updateField('eventDate', e.target.value)} style={{ width: '100%', minHeight: 44 }} />
+
+          {draft.workFormat === 'remote' ? (
+            <label className="field">
+              <span>Город</span>
+              <select value={draft.cityId} onChange={(e) => updateField('cityId', e.target.value)}>
+                {CITY_OPTIONS.map((city) => (
+                  <option key={city.id} value={city.id}>
+                    {city.name}
+                  </option>
+                ))}
+              </select>
             </label>
           ) : (
-            <label>
-              <div>Срок действия</div>
-              <input type="datetime-local" value={draft.expiresAt} onChange={(e) => updateField('expiresAt', e.target.value)} style={{ width: '100%', minHeight: 44 }} />
+            <label className="field">
+              <span>ID адреса</span>
+              <input
+                value={draft.addressId}
+                onChange={(e) => updateField('addressId', e.target.value)}
+                placeholder="Например, 1"
+              />
+            </label>
+          )}
+
+          <label className="field">
+            <span>Зарплата от</span>
+            <input value={draft.salaryFrom} onChange={(e) => updateField('salaryFrom', e.target.value)} />
+          </label>
+
+          <label className="field">
+            <span>Зарплата до</span>
+            <input value={draft.salaryTo} onChange={(e) => updateField('salaryTo', e.target.value)} />
+          </label>
+
+          {draft.opportunityType === 'event' ? (
+            <label className="field">
+              <span>Дата мероприятия</span>
+              <input type="datetime-local" value={draft.eventDate} onChange={(e) => updateField('eventDate', e.target.value)} />
+            </label>
+          ) : (
+            <label className="field">
+              <span>Срок действия</span>
+              <input type="datetime-local" value={draft.expiresAt} onChange={(e) => updateField('expiresAt', e.target.value)} />
             </label>
           )}
         </div>
-
-        <div style={{ color: '#667085' }}>
-          Подсказка для текущих seed-данных backend: <strong>cityId=1</strong> — Tomsk, <strong>addressId=1</strong> — Tomsk, Lenina Ave, 30.
-        </div>
       </section>
 
-      <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 16 }}>
+      <section style={sectionStyle}>
         <h2 style={{ margin: 0 }}>Контакты и теги</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16 }}>
-          <label>
-            <div>Email</div>
-            <input value={draft.contactEmail} onChange={(e) => updateField('contactEmail', e.target.value)} style={{ width: '100%', minHeight: 44 }} />
+        <div style={grid4Style}>
+          <label className="field">
+            <span>Email</span>
+            <input value={draft.contactEmail} onChange={(e) => updateField('contactEmail', e.target.value)} />
           </label>
-          <label>
-            <div>Телефон</div>
-            <input value={draft.contactPhone} onChange={(e) => updateField('contactPhone', e.target.value)} style={{ width: '100%', minHeight: 44 }} />
+
+          <label className="field">
+            <span>Телефон</span>
+            <input value={draft.contactPhone} onChange={(e) => updateField('contactPhone', e.target.value)} />
           </label>
-          <label>
-            <div>Telegram</div>
-            <input value={draft.contactTelegram} onChange={(e) => updateField('contactTelegram', e.target.value)} style={{ width: '100%', minHeight: 44 }} />
+
+          <label className="field">
+            <span>Telegram</span>
+            <input value={draft.contactTelegram} onChange={(e) => updateField('contactTelegram', e.target.value)} />
           </label>
-          <label>
-            <div>Контактное лицо</div>
-            <input value={draft.contactPerson} onChange={(e) => updateField('contactPerson', e.target.value)} style={{ width: '100%', minHeight: 44 }} />
+
+          <label className="field">
+            <span>Контактное лицо</span>
+            <input value={draft.contactPerson} onChange={(e) => updateField('contactPerson', e.target.value)} />
           </label>
         </div>
 
         <div>
-          <div style={{ marginBottom: 10 }}>Теги</div>
+          <div style={{ marginBottom: 10, color: '#334155', fontSize: 14, fontWeight: 600 }}>Теги</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {(tagsQuery.data ?? []).map((tag) => (
-              <button
-                key={tag.id}
-                type="button"
-                className={draft.tagIds.includes(tag.id) ? 'btn' : 'btn btn--secondary'}
-                onClick={() => toggleTag(tag.id)}
-              >
-                {tag.name}
-              </button>
-            ))}
+            {(tagsQuery.data ?? []).map((tag) => {
+              const active = draft.tagIds.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => toggleTag(tag.id)}
+                  style={{
+                    border: active ? 'none' : '1px solid #dbe3f0',
+                    borderRadius: 16,
+                    padding: '10px 14px',
+                    background: active ? 'linear-gradient(135deg, #2f6fed, #4f46e5)' : '#eef3ff',
+                    color: active ? '#fff' : '#2447d6',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {tag.name}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <label>
-          <div>Дополнительные ссылки</div>
-          <textarea value={draft.resourceLinksText} onChange={(e) => updateField('resourceLinksText', e.target.value)} style={{ width: '100%', minHeight: 90 }} placeholder={'По одной ссылке с новой строки'} />
+        <label className="field">
+          <span>Дополнительные ссылки</span>
+          <textarea
+            value={draft.resourceLinksText}
+            onChange={(e) => updateField('resourceLinksText', e.target.value)}
+            placeholder="По одной ссылке с новой строки"
+          />
         </label>
 
-        <label>
-          <div>Media URLs</div>
-          <textarea value={draft.mediaText} onChange={(e) => updateField('mediaText', e.target.value)} style={{ width: '100%', minHeight: 90 }} placeholder={'По одной ссылке с новой строки'} />
+        <label className="field">
+          <span>Media URLs</span>
+          <textarea
+            value={draft.mediaText}
+            onChange={(e) => updateField('mediaText', e.target.value)}
+            placeholder="По одной ссылке с новой строки"
+          />
         </label>
       </section>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="btn" type="submit" disabled={createMutation.isPending}>
-          {createMutation.isPending ? 'Создаём…' : 'Создать возможность'}
-        </button>
-        <Link className="btn btn--secondary" to={paths.employerOpportunities}>
-          К списку
-        </Link>
-      </div>
+      <section style={{ ...sectionStyle, gap: 12 }}>
+        <div style={{ color: '#667085', fontSize: 14 }}>
+          {draft.workFormat === 'remote'
+            ? `Карточка будет привязана к городу: ${getCityNameById(draft.cityId)}.`
+            : 'Для офисного и гибридного формата используется ID адреса из базы.'}
+        </div>
 
-      {createMutation.isError ? (
-        <p style={{ color: '#b42318', margin: 0 }}>{getErrorMessage(createMutation.error)}</p>
-      ) : null}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn" type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+            {createMutation.isPending || updateMutation.isPending
+              ? isEditMode
+                ? 'Сохраняем…'
+                : 'Создаём…'
+              : isEditMode
+                ? 'Сохранить изменения'
+                : 'Создать возможность'}
+          </button>
+          <Link className="btn btn--secondary" to={paths.employerOpportunities}>
+            К списку
+          </Link>
+        </div>
+      </section>
+
+      {createMutation.isError ? <p style={{ color: '#b42318', margin: 0 }}>{getErrorMessage(createMutation.error)}</p> : null}
+      {updateMutation.isError ? <p style={{ color: '#b42318', margin: 0 }}>{getErrorMessage(updateMutation.error)}</p> : null}
     </form>
   );
 }

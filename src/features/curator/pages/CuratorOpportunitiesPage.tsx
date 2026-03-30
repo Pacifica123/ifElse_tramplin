@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { paths } from '@/app/router/paths';
 import { getErrorMessage } from '@/shared/api/errors';
 import { getCuratorOpportunities, updateCuratorOpportunity, type CuratorOpportunity } from '@/shared/api/curator';
 import { type OpportunityType, type PublicationStatus } from '@/shared/api/opportunities';
@@ -21,11 +23,6 @@ const statusLabels: Record<PublicationStatus, string> = {
   rejected: 'Отклонена',
 };
 
-function formatDate(value?: string | null) {
-  if (!value) return '—';
-  return new Date(value).toLocaleString('ru-RU');
-}
-
 function OpportunityCard({
   item,
   isSaving,
@@ -35,8 +32,6 @@ function OpportunityCard({
   isSaving: boolean;
   onSave: (payload: Parameters<typeof updateCuratorOpportunity>[1]) => void;
 }) {
-  const [moderationNote, setModerationNote] = useState(item.moderationNote ?? '');
-
   return (
     <article style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 22, padding: 22, display: 'grid', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -55,34 +50,26 @@ function OpportunityCard({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
         <div><strong>Формат:</strong><br />{item.workFormat}</div>
         <div><strong>ID:</strong><br />{item.id}</div>
-        <div><strong>Обновлено:</strong><br />{formatDate(item.updatedAt)}</div>
-        <div><strong>Статус:</strong><br />{statusLabels[item.publicationStatus]}</div>
+        <div><strong>Salary:</strong><br />{item.salaryFrom ?? '—'} / {item.salaryTo ?? '—'}</div>
+        <div><strong>Теги:</strong><br />{item.tagIds.length ? item.tagIds.join(', ') : '—'}</div>
       </div>
 
-      <label className="field">
-        <span>Заметка куратора</span>
-        <textarea
-          rows={3}
-          value={moderationNote}
-          onChange={(event) => setModerationNote(event.target.value)}
-          style={{ border: '1px solid #d9e0ea', borderRadius: 16, padding: 14, resize: 'vertical' }}
-        />
-      </label>
-
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button className="btn" type="button" disabled={isSaving} onClick={() => onSave({ publicationStatus: 'active', moderationNote })}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center'  }}>
+        <button className="btn" type="button" disabled={isSaving} onClick={() => onSave({ publicationStatus: 'active' })}>
           Опубликовать
         </button>
-        <button className="btn btn--secondary" type="button" disabled={isSaving} onClick={() => onSave({ publicationStatus: 'pending_moderation', moderationNote })}>
+        <button className="btn btn--secondary" type="button" disabled={isSaving} onClick={() => onSave({ publicationStatus: 'pending_moderation' })}>
           Оставить на модерации
         </button>
-        <button className="btn btn--secondary" type="button" disabled={isSaving} onClick={() => onSave({ publicationStatus: 'rejected', moderationNote })}>
+        <button className="btn btn--secondary" type="button" disabled={isSaving} onClick={() => onSave({ publicationStatus: 'rejected' })}>
           Отклонить
         </button>
-        <button className="btn btn--secondary" type="button" disabled={isSaving} onClick={() => onSave({ publicationStatus: 'closed', moderationNote })}>
+        <button className="btn btn--secondary" type="button" disabled={isSaving} onClick={() => onSave({ publicationStatus: 'closed' })}>
           Закрыть
         </button>
-        <span className="btn btn--secondary" style={{ cursor: 'default' }}>Публичный просмотр появится с curator API</span>
+        <Link className="btn btn--secondary" to={paths.opportunity(item.id)}>
+          Публичная карточка
+        </Link>
       </div>
     </article>
   );
@@ -96,7 +83,7 @@ export function CuratorOpportunitiesPage() {
 
   const opportunitiesQuery = useQuery({
     queryKey: ['curator-opportunities'],
-    queryFn: getCuratorOpportunities,
+    queryFn: () => getCuratorOpportunities(),
   });
 
   const updateMutation = useMutation({
@@ -115,7 +102,11 @@ export function CuratorOpportunitiesPage() {
       const matchesType = typeFilter === 'all' ? true : item.opportunityType === typeFilter;
       const matchesSearch = !needle
         ? true
-        : [item.title, item.employerName, item.shortDescription, item.cityName, item.addressText].join(' ').toLowerCase().includes(needle);
+        : [item.title, item.employerName, item.shortDescription, item.cityName, item.addressText]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(needle);
       return matchesStatus && matchesType && matchesSearch;
     });
   }, [opportunitiesQuery.data, search, statusFilter, typeFilter]);
@@ -132,18 +123,15 @@ export function CuratorOpportunitiesPage() {
     <div style={{ display: 'grid', gap: 20 }}>
       <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 14 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 42 }}>Модерация возможностей</h1>
-          <p style={{ color: '#667085', marginTop: 10 }}>
-            Куратор может просмотреть карточки возможностей и перевести их в нужный статус публикации.
-          </p>
+          <h1 style={{ margin: 0, fontSize: 42, textAlign:'center' }}>Модерация возможностей</h1>
         </div>
-        <CuratorStubNotice />
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center'  }}>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Поиск по названию, работодателю, локации"
-            style={{ minWidth: 320, border: '1px solid #d9e0ea', borderRadius: 14, padding: '12px 14px' }}
+            style={{ minWidth: 380, border: '1px solid #d9e0ea', borderRadius: 14, padding: '12px 14px' }}
           />
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} style={{ border: '1px solid #d9e0ea', borderRadius: 14, padding: '12px 14px' }}>
             <option value="all">Все статусы</option>

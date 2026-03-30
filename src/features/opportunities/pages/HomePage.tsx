@@ -113,15 +113,14 @@ export function HomePage() {
       <section className="home-hero">
         <div className="home-hero__copy">
           <span className="home-hero__eyebrow">Трамплин · карта возможностей</span>
-          <h2>Главная уже подключена к backend-каталогу</h2>
+          <h2>Главная карта возможностей</h2>
           <p>
-            Здесь уже используются реальные <code>GET /opportunities</code> и <code>GET /tags</code>.
-            Данные на карте и в ленте теперь приходят с сервера.
+            Ищите вакансии, стажировки и мероприятия на карте и в ленте, используя фильтры по формату, типу и тегам.
           </p>
           <div className="home-hero__chips">
             <span>Публичный каталог</span>
             <span>Фильтры по формату и типу</span>
-            <span>Теги из backend</span>
+            <span>Фильтр по тегам</span>
           </div>
         </div>
 
@@ -129,7 +128,7 @@ export function HomePage() {
           <div className="home-summary-card">
             <span>Сейчас в выдаче</span>
             <strong>{opportunitiesQuery.data?.total ?? 0}</strong>
-            <small>возможностей из backend</small>
+            <small>актуальных возможностей</small>
           </div>
           <div className="home-summary-card">
             <span>Активная карточка</span>
@@ -242,7 +241,7 @@ export function HomePage() {
           <div className="home-map__header">
             <div>
               <h3>2ГИС-карта</h3>
-              <p>Маркерная карта теперь использует реальные ответы backend.</p>
+              <p>Выберите карточку слева, чтобы центрировать карту на нужной точке.</p>
             </div>
             {activeBackendOpportunity ? (
               <Link className="btn btn--secondary" to={paths.opportunity(activeBackendOpportunity.id)}>

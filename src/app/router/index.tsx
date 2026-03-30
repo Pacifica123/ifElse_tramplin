@@ -11,7 +11,7 @@ import { ApplicantProfilePage } from '@/features/applicant-profile/pages/Applica
 import { PublicApplicantProfilePage } from '@/features/applicant-profile/pages/PublicApplicantProfilePage';
 import { EmployerApplicationsPage } from '@/features/applications/pages/EmployerApplicationsPage';
 import { MyApplicationsPage } from '@/features/applications/pages/MyApplicationsPage';
-import { CuratorLoginPage } from '@/features/auth/pages/CuratorLoginPage';
+
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { RegisterPage } from '@/features/auth/pages/RegisterPage';
 import { ApplicantContactsPage } from '@/features/contacts/pages/ApplicantContactsPage';
@@ -37,7 +37,7 @@ const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: paths.login, element: <LoginPage /> },
       { path: paths.register, element: <RegisterPage /> },
-      { path: paths.curatorLogin, element: <CuratorLoginPage /> },
+
       { path: paths.events, element: <EventsPage /> },
       { path: paths.opportunity(), element: <OpportunityPage /> },
       { path: paths.publicApplicant(), element: <PublicApplicantProfilePage /> },

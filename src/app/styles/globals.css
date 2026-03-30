@@ -135,10 +135,27 @@ select {
   border: none;
   border-radius: 14px;
   background: linear-gradient(135deg, var(--primary), #4f46e5);
-  color: white;
+  color: #ffffff;
+  -webkit-text-fill-color: currentColor;
   cursor: pointer;
   font-weight: 600;
   box-shadow: 0 10px 24px rgba(47, 111, 237, 0.22);
+  text-decoration: none;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease;
+}
+
+.btn:link,
+.btn:visited,
+.btn:hover,
+.btn:active,
+.btn:focus-visible {
+  color: #ffffff;
+  -webkit-text-fill-color: currentColor;
+  text-decoration: none;
 }
 
 .btn:hover {
@@ -146,14 +163,28 @@ select {
 }
 
 .btn:disabled {
-  opacity: 0.7;
+  opacity: 0.72;
   cursor: not-allowed;
+  transform: none;
 }
 
 .btn--secondary {
   background: #edf2ff;
   color: var(--primary-dark);
   box-shadow: none;
+}
+
+.btn--secondary:link,
+.btn--secondary:visited,
+.btn--secondary:hover,
+.btn--secondary:active,
+.btn--secondary:focus-visible {
+  color: var(--primary-dark);
+  -webkit-text-fill-color: currentColor;
+}
+
+.btn--secondary:hover {
+  background: #dfe8ff;
 }
 
 /* auth pages */
@@ -206,21 +237,53 @@ select {
   font-size: 15px;
 }
 
-.field input {
+.field input,
+.field textarea,
+.field select {
   width: 100%;
   min-height: 54px;
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 0 16px;
-  font-size: 18px;
+  font-size: 16px;
   background: #fff;
   color: var(--text);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
 }
 
-.field input:focus {
+.field textarea {
+  min-height: 110px;
+  padding: 14px 16px;
+  resize: vertical;
+}
+
+.field select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 44px;
+  background-image: linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%);
+  background-position: calc(100% - 22px) calc(50% - 3px), calc(100% - 16px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 4px rgba(47, 111, 237, 0.12);
+}
+
+.field input:disabled,
+.field textarea:disabled,
+.field select:disabled {
+  background: #f8fafc;
+  color: #64748b;
+  cursor: default;
 }
 
 .role-switcher {
@@ -301,6 +364,21 @@ select {
 
 .auth-points li + li {
   margin-top: 10px;
+}
+
+.auth-hero__art {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid #dfe8f3;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(245, 249, 255, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.auth-hero__art svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 /* previous login showcase */

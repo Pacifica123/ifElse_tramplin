@@ -6,6 +6,7 @@ export function CuratorLayout() {
     <div className="dashboard">
       <aside className="sidebar">
         <h2>Кураторская зона</h2>
+        <Link to={paths.home}>На главную</Link>
         <Link to={paths.curatorDashboard}>Дашборд</Link>
         <Link to={paths.curatorEmployers}>Работодатели</Link>
         <Link to={paths.curatorApplicants}>Соискатели</Link>
