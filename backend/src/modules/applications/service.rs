@@ -2,7 +2,7 @@ use sqlx::PgPool;
 
 use crate::{
     error::{AppError, AppResult},
-    models::{AppRole, ApplicationRow, ApplicationStatus, PublicationStatus, UserRow},
+    models::{AppRole, ApplicationRow, ApplicationStatus, OpportunityType, PublicationStatus, UserRow},
     modules::{
         applicant_profiles::repo as applicant_repo,
         employer_profiles::repo as employer_repo,
@@ -32,6 +32,10 @@ pub async fn create_application(
     let target = repo::find_apply_target_by_id(pool, opportunity_id)
         .await?
         .ok_or_else(|| AppError::not_found("Opportunity not found"))?;
+
+    if target.opportunity_type == OpportunityType::Event {
+        return Err(AppError::bad_request("Event opportunities use event registration flow"));
+    }
 
     if target.publication_status != PublicationStatus::Active {
         return Err(AppError::forbidden("Only active opportunities accept applications"));

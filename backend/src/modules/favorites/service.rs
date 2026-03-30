@@ -75,6 +75,7 @@ fn map_summary(row: OpportunitySummaryRow) -> OpportunitySummaryResponse {
         publication_status: row.publication_status,
         city_id: row.city_id,
         address_id: row.address_id,
+        event_date: row.event_date,
         salary_from: row.salary_from,
         salary_to: row.salary_to,
         tag_ids: row.tag_ids,
@@ -82,7 +83,6 @@ fn map_summary(row: OpportunitySummaryRow) -> OpportunitySummaryResponse {
         address_text: row.address_text,
         latitude: row.latitude,
         longitude: row.longitude,
-        event_date: row.event_date,
         is_favorite: Some(true),
     }
 }

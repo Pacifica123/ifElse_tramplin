@@ -1,13 +1,14 @@
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, QueryBuilder, Transaction};
 
-use crate::models::{ApplicationRow, ApplicationStatus, PublicationStatus};
+use crate::models::{ApplicationRow, ApplicationStatus, OpportunityType, PublicationStatus};
 
 use super::dto::{EmployerOpportunityApplicationsQuery, MyApplicationsQuery};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct OpportunityApplyTargetRow {
     pub id: i64,
+    pub opportunity_type: OpportunityType,
     pub publication_status: PublicationStatus,
 }
 
@@ -41,6 +42,7 @@ pub async fn find_apply_target_by_id(
         r#"
         select
             id,
+            opportunity_type,
             publication_status
         from opportunities
         where id = $1
@@ -153,32 +155,6 @@ pub async fn list_my_applications(
     Ok((items, total))
 }
 
-
-pub async fn employer_has_application_from_applicant(
-    pool: &PgPool,
-    employer_user_id: i64,
-    applicant_profile_id: i64,
-) -> Result<bool, sqlx::Error> {
-    let exists: bool = sqlx::query_scalar(
-        r#"
-        select exists(
-            select 1
-            from applications a
-            join opportunities o on o.id = a.opportunity_id
-            join employer_profiles ep on ep.id = o.employer_profile_id
-            where ep.user_id = $1
-              and a.applicant_profile_id = $2
-        )
-        "#,
-    )
-    .bind(employer_user_id)
-    .bind(applicant_profile_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(exists)
-}
-
 pub async fn find_owned_opportunity(
     pool: &PgPool,
     employer_user_id: i64,
@@ -199,6 +175,30 @@ pub async fn find_owned_opportunity(
     .await
 }
 
+
+
+pub async fn employer_has_application_from_applicant(
+    pool: &PgPool,
+    employer_user_id: i64,
+    applicant_profile_id: i64,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar(
+        r#"
+        select exists(
+            select 1
+            from applications a
+            join opportunities o on o.id = a.opportunity_id
+            join employer_profiles ep on ep.id = o.employer_profile_id
+            where ep.user_id = $1
+              and a.applicant_profile_id = $2
+        )
+        "#,
+    )
+    .bind(employer_user_id)
+    .bind(applicant_profile_id)
+    .fetch_one(pool)
+    .await
+}
 pub async fn list_employer_applications_for_opportunity(
     pool: &PgPool,
     employer_user_id: i64,

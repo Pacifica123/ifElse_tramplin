@@ -22,6 +22,7 @@ pub async fn list_favorite_opportunities(
             o.publication_status,
             o.city_id,
             o.address_id,
+            o.event_date,
             o.salary_from,
             o.salary_to,
             coalesce((

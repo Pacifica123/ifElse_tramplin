@@ -40,6 +40,11 @@ use crate::{
             get_current_verification_request,
         },
         employer_profiles::handler::{get_current as get_current_employer_profile, patch_current as update_current_employer_profile},
+        event_registrations::handler::{
+            create_event_registration,
+            delete_event_registration,
+            list_my_event_registrations,
+        },
         favorites::handler::{
             add_favorite_employer,
             add_favorite_opportunity,
@@ -61,7 +66,6 @@ use crate::{
             update_own_opportunity,
             update_own_opportunity_status,
         },
-        reference::handler::{list_addresses as list_reference_addresses, list_cities as list_reference_cities},
         tags::handler::list_tags,
         contacts::handler::{
             create_contact_request,
@@ -111,15 +115,15 @@ pub fn api_router() -> Router<AppState> {
         )
         .route("/opportunities/{id}/status", patch(update_own_opportunity_status))
         .route("/opportunities/{id}/applications", post(create_application))
+        .route("/opportunities/{id}/event-registration", post(create_event_registration).delete(delete_event_registration))
         .route("/applications/me", get(list_my_applications))
+        .route("/event-registrations/me", get(list_my_event_registrations))
         .route(
             "/employer/opportunities/{id}/applications",
             get(list_employer_applications_for_opportunity),
         )
         .route("/applications/{id}/status", patch(update_application_status))
         .route("/tags", get(list_tags).post(list_tags))
-        .route("/reference/cities", get(list_reference_cities))
-        .route("/reference/addresses", get(list_reference_addresses))
         .route(
             "/employer/verification-request",
             get(get_current_verification_request).post(create_current_verification_request),

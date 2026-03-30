@@ -1,0 +1,2531 @@
+openapi: 3.1.0
+info:
+  title: Trampolin Backend API
+  version: 0.2.0
+  description: 'API-контракт для платформы «Трамплин».
+
+    '
+servers:
+- url: /api/v1
+tags:
+- name: auth
+- name: me
+- name: applicant-profile
+- name: employer-profile
+- name: privacy-settings
+- name: opportunities
+- name: applications
+- name: event-registrations
+- name: tags
+- name: favorites
+- name: contacts
+- name: curator
+- name: admin
+- name: public-opportunities
+- name: employer-dashboard
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PerPage:
+      name: perPage
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    OpportunityId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ApplicationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    VerificationRequestId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ContactId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    EmployerProfileId:
+      name: employerProfileId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ApplicantProfileId:
+      name: applicantProfileId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    EmployerProfilePathId:
+      name: employerProfileId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+      - error
+      properties:
+        error:
+          type: object
+          required:
+          - code
+          - message
+          properties:
+            code:
+              type: string
+              example: forbidden
+            message:
+              type: string
+              example: Employer is not verified
+            details:
+              nullable: true
+    PaginatedOpportunityList:
+      type: object
+      required:
+      - items
+      - page
+      - perPage
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpportunitySummary'
+        page:
+          type: integer
+        perPage:
+          type: integer
+        total:
+          type: integer
+    PaginatedApplicationList:
+      type: object
+      required:
+      - items
+      - page
+      - perPage
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Application'
+        page:
+          type: integer
+        perPage:
+          type: integer
+        total:
+          type: integer
+    Role:
+      type: string
+      enum:
+      - applicant
+      - employer
+      - curator
+      - admin_curator
+    VerificationStatus:
+      type: string
+      enum:
+      - pending
+      - verified
+      - rejected
+    VerificationRequestStatus:
+      type: string
+      enum:
+      - pending
+      - approved
+      - rejected
+    OpportunityType:
+      type: string
+      enum:
+      - internship
+      - vacancy
+      - mentoring
+      - event
+    WorkFormat:
+      type: string
+      enum:
+      - office
+      - hybrid
+      - remote
+    EmploymentType:
+      type: string
+      enum:
+      - full_time
+      - part_time
+      - project
+    Level:
+      type: string
+      enum:
+      - intern
+      - junior
+      - middle
+      - senior
+    PublicationStatus:
+      type: string
+      enum:
+      - draft
+      - pending_moderation
+      - active
+      - planned
+      - closed
+      - rejected
+    ApplicationStatus:
+      type: string
+      enum:
+      - pending
+      - accepted
+      - rejected
+      - reserve
+    EventRegistrationStatus:
+      type: string
+      enum:
+      - registered
+      - cancelled
+    ContactStatus:
+      type: string
+      enum:
+      - pending
+      - accepted
+      - rejected
+      - blocked
+    TagType:
+      type: string
+      enum:
+      - technology
+      - level
+      - employment
+      - category
+    RegisterRequest:
+      type: object
+      required:
+      - email
+      - password
+      - displayName
+      - role
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        displayName:
+          type: string
+        role:
+          type: string
+          enum:
+          - applicant
+          - employer
+    LoginRequest:
+      type: object
+      required:
+      - email
+      - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    AuthResponse:
+      type: object
+      required:
+      - accessToken
+      - refreshToken
+      - user
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          $ref: '#/components/schemas/MeResponse'
+    MeResponse:
+      type: object
+      required:
+      - id
+      - email
+      - displayName
+      - role
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+    EmployerProfile:
+      type: object
+      required:
+      - id
+      - userId
+      - companyName
+      - verificationStatus
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        companyName:
+          type: string
+        shortDescription:
+          type: string
+          nullable: true
+        industry:
+          type: string
+          nullable: true
+        websiteUrl:
+          type: string
+          format: uri
+          nullable: true
+        socialLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+        officePhotos:
+          type: array
+          items:
+            type: string
+            format: uri
+        promoVideoUrl:
+          type: string
+          format: uri
+          nullable: true
+        cityId:
+          type: integer
+          format: int64
+          nullable: true
+        verificationStatus:
+          $ref: '#/components/schemas/VerificationStatus'
+        verificationComment:
+          type: string
+          nullable: true
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+    EmployerProfileUpdateRequest:
+      type: object
+      properties:
+        companyName:
+          type: string
+        shortDescription:
+          type: string
+        industry:
+          type: string
+        websiteUrl:
+          type: string
+          format: uri
+        socialLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+        officePhotos:
+          type: array
+          items:
+            type: string
+            format: uri
+        promoVideoUrl:
+          type: string
+          format: uri
+        cityId:
+          type: integer
+          format: int64
+    ApplicantProfile:
+      type: object
+      required:
+      - id
+      - userId
+      - fullName
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        university:
+          type: string
+          nullable: true
+        studyCourse:
+          type: string
+          nullable: true
+        graduationYear:
+          type: integer
+          nullable: true
+        about:
+          type: string
+          nullable: true
+        resumeText:
+          type: string
+          nullable: true
+        portfolioLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+        skills:
+          type: array
+          items:
+            type: string
+    ApplicantProfileUpdateRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+        university:
+          type: string
+        studyCourse:
+          type: string
+        graduationYear:
+          type: integer
+        about:
+          type: string
+        resumeText:
+          type: string
+        portfolioLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+    PrivacySettings:
+      type: object
+      required:
+      - resumeVisibleToContacts
+      - resumeVisibleToAllAuth
+      - applicationsVisibleToContacts
+      - applicationsVisibleToAllAuth
+      - profileVisibleToAllAuth
+      properties:
+        resumeVisibleToContacts:
+          type: boolean
+        resumeVisibleToAllAuth:
+          type: boolean
+        applicationsVisibleToContacts:
+          type: boolean
+        applicationsVisibleToAllAuth:
+          type: boolean
+        profileVisibleToAllAuth:
+          type: boolean
+    OpportunitySummary:
+      type: object
+      required:
+      - id
+      - title
+      - opportunityType
+      - workFormat
+      - publicationStatus
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        shortDescription:
+          type: string
+          nullable: true
+        employerProfileId:
+          type: integer
+          format: int64
+        employerName:
+          type: string
+          nullable: true
+        opportunityType:
+          $ref: '#/components/schemas/OpportunityType'
+        workFormat:
+          $ref: '#/components/schemas/WorkFormat'
+        publicationStatus:
+          $ref: '#/components/schemas/PublicationStatus'
+        cityId:
+          type: integer
+          format: int64
+          nullable: true
+        addressId:
+          type: integer
+          format: int64
+          nullable: true
+        eventDate:
+          type: string
+          format: date-time
+          nullable: true
+        salaryFrom:
+          type: integer
+          nullable: true
+        salaryTo:
+          type: integer
+          nullable: true
+        tagIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        cityName:
+          type: string
+          nullable: true
+        addressText:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+        isFavorite:
+          type: boolean
+          nullable: true
+    OpportunityDetails:
+      allOf:
+      - $ref: '#/components/schemas/OpportunitySummary'
+      - type: object
+        properties:
+          fullDescription:
+            type: string
+            nullable: true
+          employmentType:
+            $ref: '#/components/schemas/EmploymentType'
+          level:
+            $ref: '#/components/schemas/Level'
+          publishedAt:
+            type: string
+            format: date-time
+            nullable: true
+          expiresAt:
+            type: string
+            format: date-time
+            nullable: true
+          eventDate:
+            type: string
+            format: date-time
+            nullable: true
+          contactInfo:
+            type: object
+            additionalProperties: true
+          resourceLinks:
+            type: array
+            items:
+              type: string
+              format: uri
+          media:
+            type: array
+            items:
+              type: string
+              format: uri
+    OpportunityCreateRequest:
+      type: object
+      required:
+      - title
+      - shortDescription
+      - fullDescription
+      - opportunityType
+      - workFormat
+      - contactInfo
+      - tagIds
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        shortDescription:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        fullDescription:
+          type: string
+          minLength: 30
+        opportunityType:
+          $ref: '#/components/schemas/OpportunityType'
+        workFormat:
+          $ref: '#/components/schemas/WorkFormat'
+        employmentType:
+          $ref: '#/components/schemas/EmploymentType'
+        level:
+          $ref: '#/components/schemas/Level'
+        cityId:
+          type: integer
+          format: int64
+          nullable: true
+        addressId:
+          type: integer
+          format: int64
+          nullable: true
+        salaryFrom:
+          type: integer
+          minimum: 0
+          nullable: true
+        salaryTo:
+          type: integer
+          minimum: 0
+          nullable: true
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        eventDate:
+          type: string
+          format: date-time
+          nullable: true
+        tagIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+        contactInfo:
+          type: object
+          required:
+          - email
+          properties:
+            email:
+              type: string
+              format: email
+            phone:
+              type: string
+              nullable: true
+            telegram:
+              type: string
+              nullable: true
+            contactPerson:
+              type: string
+              nullable: true
+          additionalProperties: true
+        resourceLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+        media:
+          type: array
+          items:
+            type: string
+            format: uri
+      allOf:
+      - if:
+          properties:
+            workFormat:
+              const: remote
+          required:
+          - workFormat
+        then:
+          required:
+          - cityId
+      - if:
+          properties:
+            workFormat:
+              enum:
+              - office
+              - hybrid
+          required:
+          - workFormat
+        then:
+          required:
+          - addressId
+      - if:
+          properties:
+            opportunityType:
+              const: event
+          required:
+          - opportunityType
+        then:
+          required:
+          - eventDate
+      - if:
+          properties:
+            opportunityType:
+              enum:
+              - vacancy
+              - internship
+              - mentoring
+          required:
+          - opportunityType
+        then:
+          required:
+          - expiresAt
+    OpportunityUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        shortDescription:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        fullDescription:
+          type: string
+          minLength: 30
+        workFormat:
+          $ref: '#/components/schemas/WorkFormat'
+        employmentType:
+          $ref: '#/components/schemas/EmploymentType'
+        level:
+          $ref: '#/components/schemas/Level'
+        cityId:
+          type: integer
+          format: int64
+          nullable: true
+        addressId:
+          type: integer
+          format: int64
+          nullable: true
+        salaryFrom:
+          type: integer
+          minimum: 0
+          nullable: true
+        salaryTo:
+          type: integer
+          minimum: 0
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        eventDate:
+          type: string
+          format: date-time
+          nullable: true
+        tagIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+        contactInfo:
+          type: object
+          properties:
+            email:
+              type: string
+              format: email
+            phone:
+              type: string
+              nullable: true
+            telegram:
+              type: string
+              nullable: true
+            contactPerson:
+              type: string
+              nullable: true
+          additionalProperties: true
+        resourceLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+        media:
+          type: array
+          items:
+            type: string
+            format: uri
+    OpportunityStatusUpdateRequest:
+      type: object
+      required:
+      - publicationStatus
+      properties:
+        publicationStatus:
+          $ref: '#/components/schemas/PublicationStatus'
+    Application:
+      type: object
+      required:
+      - id
+      - opportunityId
+      - applicantProfileId
+      - status
+      properties:
+        id:
+          type: integer
+          format: int64
+        opportunityId:
+          type: integer
+          format: int64
+        applicantProfileId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        coverLetter:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ApplicationCreateRequest:
+      type: object
+      properties:
+        coverLetter:
+          type: string
+          maxLength: 5000
+    ApplicationStatusUpdateRequest:
+      type: object
+      required:
+      - status
+      properties:
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+    Tag:
+      type: object
+      required:
+      - id
+      - name
+      - tagType
+      - isSystem
+      - isActive
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        tagType:
+          $ref: '#/components/schemas/TagType'
+        isSystem:
+          type: boolean
+        isActive:
+          type: boolean
+    TagCreateRequest:
+      type: object
+      required:
+      - name
+      - tagType
+      properties:
+        name:
+          type: string
+        tagType:
+          $ref: '#/components/schemas/TagType'
+    Contact:
+      type: object
+      required:
+      - id
+      - requesterUserId
+      - addresseeUserId
+      - status
+      properties:
+        id:
+          type: integer
+          format: int64
+        requesterUserId:
+          type: integer
+          format: int64
+        addresseeUserId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ContactStatus'
+    ContactRequestCreate:
+      type: object
+      required:
+      - addresseeUserId
+      properties:
+        addresseeUserId:
+          type: integer
+          format: int64
+    ContactStatusUpdateRequest:
+      type: object
+      required:
+      - status
+      properties:
+        status:
+          $ref: '#/components/schemas/ContactStatus'
+    VerificationRequest:
+      type: object
+      required:
+      - id
+      - employerProfileId
+      - status
+      - submittedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        employerProfileId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/VerificationRequestStatus'
+        comment:
+          type: string
+          nullable: true
+        submittedAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewedByCuratorId:
+          type: integer
+          format: int64
+          nullable: true
+    VerificationRequestUpdateRequest:
+      type: object
+      required:
+      - status
+      properties:
+        status:
+          $ref: '#/components/schemas/VerificationRequestStatus'
+        comment:
+          type: string
+    CreateCuratorRequest:
+      type: object
+      required:
+      - email
+      - password
+      - displayName
+      - fullName
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        displayName:
+          type: string
+        fullName:
+          type: string
+        position:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum:
+          - curator
+          - admin_curator
+          default: curator
+    RefreshTokenRequest:
+      type: object
+      required:
+      - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    LogoutRequest:
+      type: object
+      required:
+      - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    MapPoint:
+      type: object
+      required:
+      - cityName
+      properties:
+        cityId:
+          type: integer
+          format: int64
+          nullable: true
+        cityName:
+          type: string
+        addressId:
+          type: integer
+          format: int64
+          nullable: true
+        addressText:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+    ApplicantProfileView:
+      type: object
+      required:
+      - id
+      - userId
+      - fullName
+      - visibilityScope
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        university:
+          type: string
+          nullable: true
+        studyCourse:
+          type: string
+          nullable: true
+        graduationYear:
+          type: integer
+          nullable: true
+        about:
+          type: string
+          nullable: true
+        resumeText:
+          type: string
+          nullable: true
+        portfolioLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+        skills:
+          type: array
+          items:
+            type: string
+        visibilityScope:
+          type: string
+          enum:
+          - owner
+          - employer_application_access
+          - contact
+          - all_authorized
+          - hidden
+        careerInterestsVisible:
+          type: boolean
+    CareerInterestType:
+      type: string
+      enum:
+      - applied
+      - favorited
+    CareerInterest:
+      type: object
+      required:
+      - type
+      - opportunityId
+      - opportunityTitle
+      - opportunityType
+      - createdAt
+      properties:
+        type:
+          $ref: '#/components/schemas/CareerInterestType'
+        opportunityId:
+          type: integer
+          format: int64
+        opportunityTitle:
+          type: string
+        opportunityType:
+          $ref: '#/components/schemas/OpportunityType'
+        employerName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    EmployerOwnOpportunityStatus:
+      type: string
+      enum:
+      - draft
+      - pending_moderation
+      - active
+      - planned
+      - closed
+      - rejected
+    EmployerApplication:
+      type: object
+      required:
+      - id
+      - opportunityId
+      - applicantProfileId
+      - status
+      properties:
+        id:
+          type: integer
+          format: int64
+        opportunityId:
+          type: integer
+          format: int64
+        applicantProfileId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        coverLetter:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        applicant:
+          type: object
+          required:
+          - id
+          - fullName
+          properties:
+            id:
+              type: integer
+              format: int64
+            fullName:
+              type: string
+            university:
+              type: string
+              nullable: true
+            studyCourse:
+              type: string
+              nullable: true
+            graduationYear:
+              type: integer
+              nullable: true
+            about:
+              type: string
+              nullable: true
+    PaginatedEmployerApplicationList:
+      type: object
+      required:
+      - items
+      - page
+      - perPage
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployerApplication'
+        page:
+          type: integer
+        perPage:
+          type: integer
+        total:
+          type: integer
+    VerificationRequestCreateRequest:
+      type: object
+      properties:
+        comment:
+          type: string
+          maxLength: 2000
+    CuratorEmployerProfileUpdateRequest:
+      type: object
+      properties:
+        companyName:
+          type: string
+        shortDescription:
+          type: string
+        industry:
+          type: string
+        websiteUrl:
+          type: string
+          format: uri
+        socialLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+        officePhotos:
+          type: array
+          items:
+            type: string
+            format: uri
+        promoVideoUrl:
+          type: string
+          format: uri
+        cityId:
+          type: integer
+          format: int64
+        verificationStatus:
+          $ref: '#/components/schemas/VerificationStatus'
+        verificationComment:
+          type: string
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+    CuratorApplicantProfileUpdateRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+        university:
+          type: string
+        studyCourse:
+          type: string
+        graduationYear:
+          type: integer
+        about:
+          type: string
+        resumeText:
+          type: string
+        portfolioLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+    CuratorOpportunityUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        shortDescription:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        fullDescription:
+          type: string
+          minLength: 30
+        workFormat:
+          $ref: '#/components/schemas/WorkFormat'
+        employmentType:
+          $ref: '#/components/schemas/EmploymentType'
+        level:
+          $ref: '#/components/schemas/Level'
+        cityId:
+          type: integer
+          format: int64
+          nullable: true
+        addressId:
+          type: integer
+          format: int64
+          nullable: true
+        salaryFrom:
+          type: integer
+          minimum: 0
+          nullable: true
+        salaryTo:
+          type: integer
+          minimum: 0
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        eventDate:
+          type: string
+          format: date-time
+          nullable: true
+        tagIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+        contactInfo:
+          type: object
+          properties:
+            email:
+              type: string
+              format: email
+            phone:
+              type: string
+              nullable: true
+            telegram:
+              type: string
+              nullable: true
+            contactPerson:
+              type: string
+              nullable: true
+          additionalProperties: true
+        resourceLinks:
+          type: array
+          items:
+            type: string
+            format: uri
+        media:
+          type: array
+          items:
+            type: string
+            format: uri
+        publicationStatus:
+          $ref: '#/components/schemas/PublicationStatus'
+    EventRegistration:
+      type: object
+      required:
+      - id
+      - opportunityId
+      - applicantProfileId
+      - status
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        opportunityId:
+          type: integer
+          format: int64
+        applicantProfileId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/EventRegistrationStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+    EventRegistrationListItem:
+      type: object
+      required:
+      - registration
+      - opportunity
+      properties:
+        registration:
+          $ref: '#/components/schemas/EventRegistration'
+        opportunity:
+          $ref: '#/components/schemas/OpportunitySummary'
+    PaginatedEventRegistrationList:
+      type: object
+      required:
+      - items
+      - page
+      - perPage
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventRegistrationListItem'
+        page:
+          type: integer
+        perPage:
+          type: integer
+        total:
+          type: integer
+paths:
+  /auth/register:
+    post:
+      tags:
+      - auth
+      summary: Register applicant or employer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/login:
+    post:
+      tags:
+      - auth
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /me:
+    get:
+      tags:
+      - me
+      security:
+      - bearerAuth: []
+      summary: Get current user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+  /applicant-profile/me:
+    get:
+      tags:
+      - applicant-profile
+      security:
+      - bearerAuth: []
+      summary: Get current applicant profile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantProfile'
+    patch:
+      tags:
+      - applicant-profile
+      security:
+      - bearerAuth: []
+      summary: Update current applicant profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicantProfileUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantProfile'
+  /employer-profile/me:
+    get:
+      tags:
+      - employer-profile
+      security:
+      - bearerAuth: []
+      summary: Get current employer profile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployerProfile'
+    patch:
+      tags:
+      - employer-profile
+      security:
+      - bearerAuth: []
+      summary: Update current employer profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployerProfileUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployerProfile'
+  /privacy-settings/me:
+    get:
+      tags:
+      - privacy-settings
+      security:
+      - bearerAuth: []
+      summary: Get privacy settings
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacySettings'
+    patch:
+      tags:
+      - privacy-settings
+      security:
+      - bearerAuth: []
+      summary: Update privacy settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrivacySettings'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacySettings'
+  /opportunities:
+    get:
+      tags:
+      - public-opportunities
+      summary: List public opportunities for map and feed
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      - name: q
+        in: query
+        schema:
+          type: string
+      - name: cityId
+        in: query
+        schema:
+          type: integer
+          format: int64
+      - name: workFormat
+        in: query
+        schema:
+          $ref: '#/components/schemas/WorkFormat'
+      - name: opportunityType
+        in: query
+        schema:
+          $ref: '#/components/schemas/OpportunityType'
+      - name: level
+        in: query
+        schema:
+          $ref: '#/components/schemas/Level'
+      - name: employmentType
+        in: query
+        schema:
+          $ref: '#/components/schemas/EmploymentType'
+      - name: tagIds
+        in: query
+        description: Comma-separated tag ids filter
+        schema:
+          type: array
+          items:
+            type: integer
+            format: int64
+        style: form
+        explode: false
+      - name: salaryFrom
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+      - name: salaryTo
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOpportunityList'
+      description: Public catalog for guests and authorized users. Returns only public opportunities with statuses visible on the main page.
+    post:
+      tags:
+      - opportunities
+      security:
+      - bearerAuth: []
+      summary: Create opportunity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /opportunities/{id}:
+    get:
+      tags:
+      - opportunities
+      summary: Get opportunity by id
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDetails'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      description: Returns a public opportunity card visible in the catalog.
+    patch:
+      tags:
+      - opportunities
+      security:
+      - bearerAuth: []
+      summary: Update own opportunity
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDetails'
+  /opportunities/{id}/status:
+    patch:
+      tags:
+      - opportunities
+      security:
+      - bearerAuth: []
+      summary: Update opportunity publication status
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityStatusUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDetails'
+  /opportunities/{id}/applications:
+    post:
+      tags:
+      - applications
+      security:
+      - bearerAuth: []
+      summary: Apply to non-event opportunity
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '409':
+          description: Duplicate application
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      description: Creates an application for vacancy, internship, or mentoring opportunity. Event opportunities use the event registration flow.
+  /opportunities/{id}/event-registration:
+    post:
+      tags:
+      - event-registrations
+      security:
+      - bearerAuth: []
+      summary: Register current applicant for event opportunity
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRegistration'
+        '400':
+          description: Opportunity is not an event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      description: Creates a server-side event registration for the current applicant. Intended for opportunities with opportunityType=event.
+    delete:
+      tags:
+      - event-registrations
+      security:
+      - bearerAuth: []
+      summary: Cancel current applicant event registration
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      responses:
+        '204':
+          description: Cancelled
+        '400':
+          description: Opportunity is not an event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Registration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      description: Cancels the current applicant registration for an event opportunity.
+  /applications/me:
+    get:
+      tags:
+      - applications
+      security:
+      - bearerAuth: []
+      summary: List current applicant applications
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedApplicationList'
+  /event-registrations/me:
+    get:
+      tags:
+      - event-registrations
+      security:
+      - bearerAuth: []
+      summary: List current applicant event registrations
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      - name: status
+        in: query
+        schema:
+          $ref: '#/components/schemas/EventRegistrationStatus'
+      - name: q
+        in: query
+        description: Search by event title
+        schema:
+          type: string
+      - name: upcomingOnly
+        in: query
+        schema:
+          type: boolean
+          default: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEventRegistrationList'
+  /employer/opportunities/{id}/applications:
+    get:
+      tags:
+      - applications
+      security:
+      - bearerAuth: []
+      summary: List applications for own opportunity
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      - name: status
+        in: query
+        schema:
+          $ref: '#/components/schemas/ApplicationStatus'
+      - name: q
+        in: query
+        description: Search by applicant full name
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEmployerApplicationList'
+  /applications/{id}/status:
+    patch:
+      tags:
+      - applications
+      security:
+      - bearerAuth: []
+      summary: Update application status
+      parameters:
+      - $ref: '#/components/parameters/ApplicationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationStatusUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+  /tags:
+    get:
+      tags:
+      - tags
+      summary: List tags
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
+    post:
+      tags:
+      - tags
+      security:
+      - bearerAuth: []
+      summary: Create tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+  /favorites/opportunities:
+    get:
+      tags:
+      - favorites
+      security:
+      - bearerAuth: []
+      summary: List favorite opportunities
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpportunitySummary'
+  /favorites/opportunities/{id}:
+    post:
+      tags:
+      - favorites
+      security:
+      - bearerAuth: []
+      summary: Add opportunity to favorites
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      responses:
+        '204':
+          description: Added
+    delete:
+      tags:
+      - favorites
+      security:
+      - bearerAuth: []
+      summary: Remove opportunity from favorites
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      responses:
+        '204':
+          description: Removed
+  /favorites/employers:
+    get:
+      tags:
+      - favorites
+      security:
+      - bearerAuth: []
+      summary: List favorite employers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmployerProfile'
+  /favorites/employers/{employerProfileId}:
+    post:
+      tags:
+      - favorites
+      security:
+      - bearerAuth: []
+      summary: Add employer to favorites
+      parameters:
+      - $ref: '#/components/parameters/EmployerProfileId'
+      responses:
+        '204':
+          description: Added
+    delete:
+      tags:
+      - favorites
+      security:
+      - bearerAuth: []
+      summary: Remove employer from favorites
+      parameters:
+      - $ref: '#/components/parameters/EmployerProfileId'
+      responses:
+        '204':
+          description: Removed
+  /contacts:
+    get:
+      tags:
+      - contacts
+      security:
+      - bearerAuth: []
+      summary: List my contacts and requests
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contact'
+  /contacts/requests:
+    post:
+      tags:
+      - contacts
+      security:
+      - bearerAuth: []
+      summary: Create contact request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactRequestCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+  /contacts/{id}:
+    patch:
+      tags:
+      - contacts
+      security:
+      - bearerAuth: []
+      summary: Update contact status
+      parameters:
+      - $ref: '#/components/parameters/ContactId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactStatusUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+  /curator/verification-requests:
+    get:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: List verification requests
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VerificationRequest'
+  /curator/verification-requests/{id}:
+    patch:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: Review verification request
+      parameters:
+      - $ref: '#/components/parameters/VerificationRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequestUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationRequest'
+  /admin/curators:
+    post:
+      tags:
+      - admin
+      security:
+      - bearerAuth: []
+      summary: Create curator or admin curator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCuratorRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+  /auth/refresh:
+    post:
+      tags:
+      - auth
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/logout:
+    post:
+      tags:
+      - auth
+      security:
+      - bearerAuth: []
+      summary: Logout current session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: Logged out
+  /employer/verification-request:
+    get:
+      tags:
+      - employer-dashboard
+      security:
+      - bearerAuth: []
+      summary: Get current employer verification request
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationRequest'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+      - employer-dashboard
+      security:
+      - bearerAuth: []
+      summary: Submit employer verification request
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequestCreateRequest'
+      responses:
+        '201':
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationRequest'
+        '409':
+          description: Already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /employer/opportunities:
+    get:
+      tags:
+      - employer-dashboard
+      security:
+      - bearerAuth: []
+      summary: List own opportunities with dashboard filters
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      - name: q
+        in: query
+        schema:
+          type: string
+      - name: publicationStatus
+        in: query
+        schema:
+          $ref: '#/components/schemas/EmployerOwnOpportunityStatus'
+      - name: workFormat
+        in: query
+        schema:
+          $ref: '#/components/schemas/WorkFormat'
+      - name: opportunityType
+        in: query
+        schema:
+          $ref: '#/components/schemas/OpportunityType'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOpportunityList'
+  /employer/applications:
+    get:
+      tags:
+      - employer-dashboard
+      security:
+      - bearerAuth: []
+      summary: List applications across own opportunities
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      - name: q
+        in: query
+        description: Search by applicant name or opportunity title
+        schema:
+          type: string
+      - name: opportunityId
+        in: query
+        schema:
+          type: integer
+          format: int64
+      - name: status
+        in: query
+        schema:
+          $ref: '#/components/schemas/ApplicationStatus'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEmployerApplicationList'
+  /applicant-profiles/{applicantProfileId}:
+    get:
+      tags:
+      - applicant-profile
+      security:
+      - bearerAuth: []
+      summary: Get applicant profile visible to current authorized user
+      parameters:
+      - $ref: '#/components/parameters/ApplicantProfileId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantProfileView'
+        '403':
+          description: Hidden by privacy settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /employer/applicant-profiles/{applicantProfileId}:
+    get:
+      tags:
+      - employer-dashboard
+      security:
+      - bearerAuth: []
+      summary: Get applicant profile for applicant who responded to own opportunity
+      parameters:
+      - $ref: '#/components/parameters/ApplicantProfileId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantProfileView'
+        '403':
+          description: No access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /contacts/applicant-profiles/{applicantProfileId}/career-interests:
+    get:
+      tags:
+      - contacts
+      security:
+      - bearerAuth: []
+      summary: Get career interests visible for contact applicant profile
+      parameters:
+      - $ref: '#/components/parameters/ApplicantProfileId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CareerInterest'
+        '403':
+          description: No access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /curator/employer-profiles:
+    get:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: List employer profiles for moderation
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      - name: q
+        in: query
+        schema:
+          type: string
+      - name: verificationStatus
+        in: query
+        schema:
+          $ref: '#/components/schemas/VerificationStatus'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - perPage
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EmployerProfile'
+                  page:
+                    type: integer
+                  perPage:
+                    type: integer
+                  total:
+                    type: integer
+  /curator/employer-profiles/{employerProfileId}:
+    get:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: Get employer profile for moderation
+      parameters:
+      - $ref: '#/components/parameters/EmployerProfilePathId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployerProfile'
+    patch:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: Update employer profile as curator
+      parameters:
+      - $ref: '#/components/parameters/EmployerProfilePathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CuratorEmployerProfileUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployerProfile'
+  /curator/applicant-profiles:
+    get:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: List applicant profiles for moderation
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      - name: q
+        in: query
+        schema:
+          type: string
+      - name: university
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - perPage
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicantProfile'
+                  page:
+                    type: integer
+                  perPage:
+                    type: integer
+                  total:
+                    type: integer
+  /curator/applicant-profiles/{applicantProfileId}:
+    get:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: Get applicant profile for moderation
+      parameters:
+      - $ref: '#/components/parameters/ApplicantProfileId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantProfile'
+    patch:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: Update applicant profile as curator
+      parameters:
+      - $ref: '#/components/parameters/ApplicantProfileId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CuratorApplicantProfileUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantProfile'
+  /curator/opportunities:
+    get:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: List opportunities for moderation
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      - name: q
+        in: query
+        schema:
+          type: string
+      - name: publicationStatus
+        in: query
+        schema:
+          $ref: '#/components/schemas/PublicationStatus'
+      - name: opportunityType
+        in: query
+        schema:
+          $ref: '#/components/schemas/OpportunityType'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOpportunityList'
+  /curator/opportunities/{id}:
+    get:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: Get opportunity for moderation
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDetails'
+    patch:
+      tags:
+      - curator
+      security:
+      - bearerAuth: []
+      summary: Update opportunity as curator
+      parameters:
+      - $ref: '#/components/parameters/OpportunityId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CuratorOpportunityUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDetails'

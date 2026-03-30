@@ -102,6 +102,14 @@ pub enum ApplicationStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "event_registration_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum EventRegistrationStatus {
+    Registered,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "tag_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum TagType {
@@ -178,6 +186,17 @@ pub struct ApplicationRow {
     pub cover_letter: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct EventRegistrationRow {
+    pub id: i64,
+    pub opportunity_id: i64,
+    pub applicant_profile_id: i64,
+    pub status: EventRegistrationStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub cancelled_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, FromRow)]

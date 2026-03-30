@@ -144,6 +144,7 @@ pub struct OpportunitySummaryResponse {
     pub publication_status: PublicationStatus,
     pub city_id: Option<i64>,
     pub address_id: Option<i64>,
+    pub event_date: Option<DateTime<Utc>>,
     pub salary_from: Option<i32>,
     pub salary_to: Option<i32>,
     pub tag_ids: Vec<i64>,
@@ -151,7 +152,6 @@ pub struct OpportunitySummaryResponse {
     pub address_text: Option<String>,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
-    pub event_date: Option<DateTime<Utc>>,
     pub is_favorite: Option<bool>,
 }
 
