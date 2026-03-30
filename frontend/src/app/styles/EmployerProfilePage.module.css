@@ -1,0 +1,238 @@
+.page {
+  display: grid;
+  gap: 24px;
+}
+
+.hero {
+  border: 1px solid #cfd8e6;
+  border-radius: 28px;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+}
+
+.heroTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.title {
+  margin: 0;
+  font-size: 56px;
+  line-height: 1.04;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #1e293b;
+}
+
+.subtitle {
+  margin: 12px 0 0;
+  color: #667085;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.leftColumn,
+.rightColumn {
+  display: grid;
+  gap: 24px;
+}
+
+.card {
+  border: 1px solid #cfd8e6;
+  border-radius: 24px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.035);
+}
+
+.cardTitle {
+  margin: 0 0 18px;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.fields {
+  display: grid;
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.45;
+  padding: 12px 14px;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.field input::placeholder,
+.field textarea::placeholder,
+.field select::placeholder {
+  color: #94a3b8;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+}
+
+.field input:disabled,
+.field textarea:disabled,
+.field select:disabled {
+  background: #f8fafc;
+  color: #475569;
+  cursor: default;
+}
+
+.field select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 42px;
+  background-image: linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%);
+  background-position: calc(100% - 22px) calc(50% - 2px), calc(100% - 16px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.twoCols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.infoList {
+  display: grid;
+  gap: 14px;
+}
+
+.muted {
+  color: #667085;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.note {
+  margin-top: 16px;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.statusPending {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+}
+
+.statusVerified {
+  background: rgba(34, 197, 94, 0.12);
+  color: #166534;
+  border: 1px solid rgba(34, 197, 94, 0.22);
+}
+
+.statusRejected {
+  background: rgba(239, 68, 68, 0.12);
+  color: #991b1b;
+  border: 1px solid rgba(239, 68, 68, 0.22);
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.list li {
+  color: #334155;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+  .title {
+    font-size: 44px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .hero,
+  .card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .heroTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+
+  .title {
+    font-size: 34px;
+  }
+
+  .twoCols {
+    grid-template-columns: 1fr;
+  }
+}
