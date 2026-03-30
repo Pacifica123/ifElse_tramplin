@@ -12,6 +12,7 @@ use crate::{
        applicant_profiles::handler::{
             get_by_id as get_applicant_profile_by_id,
             get_current as get_current_applicant_profile,
+            get_for_employer_by_id as get_employer_visible_applicant_profile_by_id,
             patch_current as update_current_applicant_profile,
         },
         applications::handler::{
@@ -67,6 +68,7 @@ use crate::{
             update_own_opportunity_status,
         },
         tags::handler::list_tags,
+        reference::handler::{list_addresses, list_cities},
         contacts::handler::{
             create_contact_request,
             list_contacts,
@@ -92,6 +94,10 @@ pub fn api_router() -> Router<AppState> {
         .route(
             "/applicant-profiles/{applicantProfileId}",
             get(get_applicant_profile_by_id),
+        )
+        .route(
+            "/employer/applicant-profiles/{applicantProfileId}",
+            get(get_employer_visible_applicant_profile_by_id),
         )
         .route(
             "/employer-profile/me",
@@ -124,6 +130,8 @@ pub fn api_router() -> Router<AppState> {
         )
         .route("/applications/{id}/status", patch(update_application_status))
         .route("/tags", get(list_tags).post(list_tags))
+        .route("/reference/cities", get(list_cities))
+        .route("/reference/addresses", get(list_addresses))
         .route(
             "/employer/verification-request",
             get(get_current_verification_request).post(create_current_verification_request),
