@@ -123,6 +123,23 @@ def auth_flow(results: list[StepResult], base_url: str, role: str) -> tuple[dict
     return {"email": email, "displayName": display_name, "role": role}, access_token
 
 
+
+
+def login_existing_user(results: list[StepResult], base_url: str, email: str, password: str) -> str:
+    _, login_payload = run_step(
+        results,
+        "login existing",
+        "POST",
+        f"{base_url}/api/v1/auth/login",
+        200,
+        json_body={"email": email, "password": password},
+    )
+    access_token = login_payload.get("accessToken") if isinstance(login_payload, dict) else None
+    if not access_token:
+        append_local_result(results, "extract existing access token", False, login_payload)
+        return ""
+    return access_token
+
 def run_stub_mode(base_url: str) -> int:
     results: list[StepResult] = []
     run_step(results, "root health", "GET", f"{base_url}/health", 200)
@@ -269,6 +286,195 @@ def run_employer_dashboard_mode(base_url: str) -> int:
     return print_summary(results)
 
 
+
+
+
+def run_curator_mode(base_url: str) -> int:
+    results: list[StepResult] = []
+
+    applicant_identity, applicant_token = auth_flow(results, base_url, "applicant")
+    if not applicant_token:
+        return print_summary(results)
+    applicant_headers = {"Authorization": f"Bearer {applicant_token}"}
+    _, applicant_profile_payload = run_step(results, "get applicant profile me", "GET", f"{base_url}/api/v1/applicant-profile/me", 200, headers=applicant_headers)
+    applicant_profile_id = applicant_profile_payload.get("id") if isinstance(applicant_profile_payload, dict) else None
+
+    _, employer_token = auth_flow(results, base_url, "employer")
+    if not employer_token:
+        return print_summary(results)
+    employer_headers = {"Authorization": f"Bearer {employer_token}"}
+    _, vr_payload = run_step(
+        results,
+        "create verification request",
+        "POST",
+        f"{base_url}/api/v1/employer/verification-request",
+        201,
+        json_body={"comment": "Please review for curator smoke"},
+        headers=employer_headers,
+    )
+    verification_request_id = vr_payload.get("id") if isinstance(vr_payload, dict) else None
+    employer_profile_id = vr_payload.get("employerProfileId") if isinstance(vr_payload, dict) else None
+    append_local_result(results, "verification request created", verification_request_id is not None, vr_payload)
+
+    admin_token = login_existing_user(results, base_url, "admin@trampolin.local", "admin12345")
+    if not admin_token:
+        return print_summary(results)
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    run_step(results, "list verification requests", "GET", f"{base_url}/api/v1/curator/verification-requests", 200, headers=admin_headers)
+    if verification_request_id is not None:
+        run_step(results, "get verification request by id", "GET", f"{base_url}/api/v1/curator/verification-requests/{verification_request_id}", 200, headers=admin_headers)
+        _, reviewed_payload = run_step(
+            results,
+            "approve verification request",
+            "PATCH",
+            f"{base_url}/api/v1/curator/verification-requests/{verification_request_id}",
+            200,
+            json_body={"status": "approved", "comment": "Approved by admin curator smoke"},
+            headers=admin_headers,
+        )
+        reviewed_ok = isinstance(reviewed_payload, dict) and reviewed_payload.get("status") == "approved"
+        append_local_result(results, "verification request approved", reviewed_ok, reviewed_payload)
+
+    if employer_profile_id is not None:
+        _, employers_payload = run_step(results, "list curator employer profiles", "GET", f"{base_url}/api/v1/curator/employer-profiles", 200, headers=admin_headers)
+        employers_ok = isinstance(employers_payload, dict) and isinstance(employers_payload.get("items"), list)
+        append_local_result(results, "curator employer profiles shape", employers_ok, employers_payload)
+        run_step(results, "get curator employer profile", "GET", f"{base_url}/api/v1/curator/employer-profiles/{employer_profile_id}", 200, headers=admin_headers)
+        _, employer_after_payload = run_step(
+            results,
+            "patch curator employer profile",
+            "PATCH",
+            f"{base_url}/api/v1/curator/employer-profiles/{employer_profile_id}",
+            200,
+            json_body={"verificationStatus": "verified", "verificationComment": "Curator verified", "cityId": 1},
+            headers=admin_headers,
+        )
+        employer_after_ok = isinstance(employer_after_payload, dict) and employer_after_payload.get("verificationStatus") == "verified"
+        append_local_result(results, "curator employer verified", employer_after_ok, employer_after_payload)
+
+    create_payload = {
+        "title": "Curator Smoke Internship",
+        "shortDescription": "Opportunity created after curator approval",
+        "fullDescription": "This opportunity is created after the employer was approved by curator and is used to test moderation endpoints.",
+        "opportunityType": "internship",
+        "workFormat": "remote",
+        "employmentType": "part_time",
+        "level": "intern",
+        "cityId": 1,
+        "expiresAt": "2026-06-15T00:00:00Z",
+        "tagIds": [1, 4],
+        "contactInfo": {"email": "hr@example.com"},
+        "resourceLinks": ["https://example.com/jobs/curator-smoke"],
+        "media": []
+    }
+    _, created_opportunity_payload = run_step(results, "create opportunity after approval", "POST", f"{base_url}/api/v1/opportunities", 201, json_body=create_payload, headers=employer_headers)
+    opportunity_id = created_opportunity_payload.get("id") if isinstance(created_opportunity_payload, dict) else None
+    append_local_result(results, "opportunity created after approval", opportunity_id is not None, created_opportunity_payload)
+
+    _, curator_opps_payload = run_step(results, "list curator opportunities", "GET", f"{base_url}/api/v1/curator/opportunities", 200, headers=admin_headers)
+    opps_ok = isinstance(curator_opps_payload, dict) and isinstance(curator_opps_payload.get("items"), list)
+    append_local_result(results, "curator opportunities shape", opps_ok, curator_opps_payload)
+    if opportunity_id is not None:
+        run_step(results, "get curator opportunity", "GET", f"{base_url}/api/v1/curator/opportunities/{opportunity_id}", 200, headers=admin_headers)
+        _, updated_opportunity_payload = run_step(
+            results,
+            "patch curator opportunity",
+            "PATCH",
+            f"{base_url}/api/v1/curator/opportunities/{opportunity_id}",
+            200,
+            json_body={"shortDescription": "Updated by curator smoke flow", "publicationStatus": "pending_moderation", "tagIds": [1, 4], "cityId": 1, "contactInfo": {"email": "hr@example.com"}},
+            headers=admin_headers,
+        )
+        opp_update_ok = isinstance(updated_opportunity_payload, dict) and updated_opportunity_payload.get("publicationStatus") == "pending_moderation"
+        append_local_result(results, "curator opportunity updated", opp_update_ok, updated_opportunity_payload)
+
+    _, applicants_payload = run_step(results, "list curator applicant profiles", "GET", f"{base_url}/api/v1/curator/applicant-profiles", 200, headers=admin_headers)
+    applicants_ok = isinstance(applicants_payload, dict) and isinstance(applicants_payload.get("items"), list)
+    append_local_result(results, "curator applicant profiles shape", applicants_ok, applicants_payload)
+    if applicant_profile_id is not None:
+        run_step(results, "get curator applicant profile", "GET", f"{base_url}/api/v1/curator/applicant-profiles/{applicant_profile_id}", 200, headers=admin_headers)
+        _, updated_applicant_payload = run_step(
+            results,
+            "patch curator applicant profile",
+            "PATCH",
+            f"{base_url}/api/v1/curator/applicant-profiles/{applicant_profile_id}",
+            200,
+            json_body={"about": "Reviewed by curator smoke", "fullName": "Curated Applicant", "portfolioLinks": ["https://github.com/example/applicant"]},
+            headers=admin_headers,
+        )
+        applicant_update_ok = isinstance(updated_applicant_payload, dict) and updated_applicant_payload.get("fullName") == "Curated Applicant"
+        append_local_result(results, "curator applicant updated", applicant_update_ok, updated_applicant_payload)
+
+    _, created_curator_payload = run_step(
+        results,
+        "create curator user",
+        "POST",
+        f"{base_url}/api/v1/admin/curators",
+        201,
+        json_body={
+            "email": f"curator_{uuid.uuid4().hex[:8]}@example.com",
+            "password": "password123",
+            "displayName": "Smoke Curator",
+            "fullName": "Smoke Curator Full",
+            "position": "Moderator",
+            "role": "curator",
+        },
+        headers=admin_headers,
+    )
+    curator_create_ok = isinstance(created_curator_payload, dict) and created_curator_payload.get("role") == "curator"
+    append_local_result(results, "admin created curator", curator_create_ok, created_curator_payload)
+
+    return print_summary(results)
+
+def run_applications_mode(base_url: str) -> int:
+    results: list[StepResult] = []
+    _, access_token = auth_flow(results, base_url, "applicant")
+    if not access_token:
+        return print_summary(results)
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    _, list_payload = run_step(results, "list opportunities", "GET", f"{base_url}/api/v1/opportunities", 200)
+    items = list_payload.get("items", []) if isinstance(list_payload, dict) else []
+    if not items:
+        append_local_result(results, "catalog has active opportunities", False, list_payload)
+        return print_summary(results)
+
+    opportunity_id = items[0].get("id")
+    append_local_result(results, "catalog has active opportunities", opportunity_id is not None, items[0])
+    if opportunity_id is None:
+        return print_summary(results)
+
+    _, create_payload = run_step(
+        results,
+        "create application",
+        "POST",
+        f"{base_url}/api/v1/opportunities/{opportunity_id}/applications",
+        201,
+        json_body={"coverLetter": "I would like to join this internship and already use Rust."},
+        headers=headers,
+    )
+    create_ok = isinstance(create_payload, dict) and create_payload.get("opportunityId") == opportunity_id
+    append_local_result(results, "application created", create_ok, create_payload)
+
+    run_step(
+        results,
+        "duplicate application",
+        "POST",
+        f"{base_url}/api/v1/opportunities/{opportunity_id}/applications",
+        409,
+        json_body={"coverLetter": "duplicate"},
+        headers=headers,
+    )
+
+    _, my_payload = run_step(results, "list my applications", "GET", f"{base_url}/api/v1/applications/me", 200, headers=headers)
+    my_items = my_payload.get("items", []) if isinstance(my_payload, dict) else []
+    my_ok = isinstance(my_payload, dict) and any(item.get("opportunityId") == opportunity_id for item in my_items)
+    append_local_result(results, "my applications contains created", my_ok, my_payload)
+
+    return print_summary(results)
+
 def print_summary(results: list[StepResult]) -> int:
     print()
     print("=" * 96)
@@ -290,7 +496,7 @@ def print_summary(results: list[StepResult]) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Smoke test runner for Trampolin backend API")
     parser.add_argument("--base-url", default="http://127.0.0.1:8080", help="Backend base URL")
-    parser.add_argument("--mode", choices=["stub", "auth", "profiles", "catalog", "employer_dashboard"], default="auth")
+    parser.add_argument("--mode", choices=["stub", "auth", "profiles", "catalog", "employer_dashboard", "applications", "curator"], default="auth")
     parser.add_argument("--role", choices=["applicant", "employer"], default="applicant")
     args = parser.parse_args()
 
@@ -302,6 +508,10 @@ def main() -> int:
         return run_catalog_mode(args.base_url)
     if args.mode == "employer_dashboard":
         return run_employer_dashboard_mode(args.base_url)
+    if args.mode == "applications":
+        return run_applications_mode(args.base_url)
+    if args.mode == "curator":
+        return run_curator_mode(args.base_url)
     return run_profiles_mode(args.base_url, args.role)
 
 
