@@ -10,3 +10,4 @@ pub mod curator;
 pub mod favorites;
 pub mod privacy_settings;
 pub mod contacts;
+pub mod reference;
