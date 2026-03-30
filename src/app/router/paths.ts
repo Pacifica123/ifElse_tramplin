@@ -2,10 +2,11 @@ export const paths = {
   home: '/',
   login: '/login',
   register: '/register',
+  curatorLogin: '/curator/login',
   events: '/events',
 
-  opportunity: (id = ':id') => `/opportunities/${id}`,
-  publicApplicant: (id = ':id') => `/applicants/${id}`,
+  opportunity: (id: string | number = ':id') => `/opportunities/${id}`,
+  publicApplicant: (id: string | number = ':id') => `/applicants/${id}`,
 
   applicantProfile: '/applicant/profile',
   applicantApplications: '/applicant/applications',
@@ -16,7 +17,7 @@ export const paths = {
   employerProfile: '/employer/profile',
   employerOpportunities: '/employer/opportunities',
   employerOpportunityNew: '/employer/opportunities/new',
-  employerOpportunityEdit: (id = ':id') => `/employer/opportunities/${id}/edit`,
+  employerOpportunityEdit: (id: string | number = ':id') => `/employer/opportunities/${id}/edit`,
   employerApplications: '/employer/applications',
 
   curatorDashboard: '/curator',

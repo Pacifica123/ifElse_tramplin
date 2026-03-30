@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { paths } from '@/app/router/paths';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { getErrorMessage } from '@/shared/api/errors';
+import {
+  getPublicOpportunities,
+  type OpportunitySummary,
+  type WorkFormat,
+} from '@/shared/api/opportunities';
+import { getTags } from '@/shared/api/tags';
 import styles from '@/app/styles/EventsPage.module.css';
 
 type EventItem = {
   id: string;
   title: string;
   company: string;
-  format: 'office' | 'hybrid' | 'remote';
+  format: WorkFormat;
   city: string;
   address: string;
   eventDate: string;
@@ -18,58 +26,7 @@ type EventItem = {
 
 const STORAGE_KEY = 'trampolin.registeredEvents.v1';
 
-const demoEvents: EventItem[] = [
-  {
-    id: 'event-1',
-    title: 'Карьерный день для студентов IT',
-    company: 'Tech Consortium',
-    format: 'office',
-    city: 'Москва',
-    address: 'Ленинские горы, 1',
-    eventDate: '2026-04-18T12:00:00+07:00',
-    shortDescription:
-      'Открытые стенды компаний, быстрые собеседования, разбор резюме и карьерные консультации.',
-    tags: ['Стажировки', 'Нетворкинг', 'HR'],
-  },
-  {
-    id: 'event-2',
-    title: 'Онлайн-митап по карьере в backend',
-    company: 'CodeSpring',
-    format: 'remote',
-    city: 'Томск',
-    address: 'Онлайн',
-    eventDate: '2026-04-22T19:00:00+07:00',
-    shortDescription:
-      'Разговор о старте в backend-разработке, требованиях к junior-кандидатам и типичных ошибках.',
-    tags: ['Backend', 'Rust', 'Junior'],
-  },
-  {
-    id: 'event-3',
-    title: 'День открытых дверей ML-команды',
-    company: 'AI Track',
-    format: 'hybrid',
-    city: 'Новосибирск',
-    address: 'Красный проспект, 25',
-    eventDate: '2026-05-03T16:30:00+07:00',
-    shortDescription:
-      'Презентация команды, разбор pet-проектов и обсуждение стажировок в AI-направлении.',
-    tags: ['ML', 'Python', 'CV'],
-  },
-  {
-    id: 'event-4',
-    title: 'Менторская встреча по подготовке к стажировкам',
-    company: 'CodeInsight',
-    format: 'office',
-    city: 'Кемерово',
-    address: 'пр. Советский, 60',
-    eventDate: '2026-05-11T14:00:00+07:00',
-    shortDescription:
-      'Живой формат с менторами: как оформить профиль, резюме и что показать работодателю.',
-    tags: ['Менторство', 'Резюме', 'Стажировки'],
-  },
-];
-
-function formatKind(format: EventItem['format']) {
+function formatKind(format: WorkFormat) {
   switch (format) {
     case 'office':
       return 'Офлайн';
@@ -96,11 +53,27 @@ function formatDate(value: string) {
   }
 }
 
+function mapOpportunityToEvent(item: OpportunitySummary, tagsById: Map<number, string>): EventItem {
+  const eventLike = item as OpportunitySummary & { eventDate?: string | null; publishedAt?: string | null };
+
+  return {
+    id: String(item.id),
+    title: item.title,
+    company: item.employerName ?? 'Организатор',
+    format: item.workFormat,
+    city: item.cityName ?? 'Не указан',
+    address: item.addressText ?? item.cityName ?? 'Локация не указана',
+    eventDate: eventLike.eventDate ?? eventLike.publishedAt ?? new Date().toISOString(),
+    shortDescription: item.shortDescription ?? 'Описание пока не добавлено.',
+    tags: item.tagIds.map((tagId) => tagsById.get(tagId) ?? `Tag #${tagId}`),
+  };
+}
+
 export function EventsPage() {
   const { user } = useAuth();
 
   const [query, setQuery] = useState('');
-  const [format, setFormat] = useState<'all' | EventItem['format']>('all');
+  const [format, setFormat] = useState<'all' | WorkFormat>('all');
   const [city, setCity] = useState('all');
   const [registeredIds, setRegisteredIds] = useState<string[]>([]);
 
@@ -122,34 +95,44 @@ export function EventsPage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(registeredIds));
   }, [registeredIds]);
 
+  const tagsQuery = useQuery({
+    queryKey: ['tags'],
+    queryFn: getTags,
+  });
+
+  const opportunitiesQuery = useQuery({
+    queryKey: ['events-page', { query, format }],
+    queryFn: () =>
+      getPublicOpportunities({
+        q: query.trim() || undefined,
+        workFormat: format === 'all' ? undefined : format,
+        opportunityType: 'event',
+      }),
+  });
+
+  const tagsById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const tag of tagsQuery.data ?? []) {
+      map.set(tag.id, tag.name);
+    }
+    return map;
+  }, [tagsQuery.data]);
+
+  const backendEvents = useMemo(
+    () => (opportunitiesQuery.data?.items ?? []).map((item) => mapOpportunityToEvent(item, tagsById)),
+    [opportunitiesQuery.data?.items, tagsById],
+  );
+
   const cities = useMemo(() => {
-    return ['all', ...Array.from(new Set(demoEvents.map((item) => item.city)))];
-  }, []);
+    return ['all', ...Array.from(new Set(backendEvents.map((item) => item.city)))];
+  }, [backendEvents]);
 
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-
-    return demoEvents.filter((item) => {
-      const matchesQuery =
-        !needle ||
-        [
-          item.title,
-          item.company,
-          item.city,
-          item.address,
-          item.shortDescription,
-          item.tags.join(' '),
-        ]
-          .join(' ')
-          .toLowerCase()
-          .includes(needle);
-
-      const matchesFormat = format === 'all' || item.format === format;
+    return backendEvents.filter((item) => {
       const matchesCity = city === 'all' || item.city === city;
-
-      return matchesQuery && matchesFormat && matchesCity;
+      return matchesCity;
     });
-  }, [city, format, query]);
+  }, [backendEvents, city]);
 
   const isApplicant = user?.role === 'applicant';
 
@@ -161,13 +144,18 @@ export function EventsPage() {
     setRegisteredIds((prev) => prev.filter((id) => id !== eventId));
   };
 
+  if (opportunitiesQuery.isError) {
+    return <div>Не удалось загрузить мероприятия: {getErrorMessage(opportunitiesQuery.error)}</div>;
+  }
+
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.heroBadge}>Трамплин · мероприятия</div>
         <h1 className={styles.title}>Карьерные мероприятия</h1>
         <p className={styles.subtitle}>
-          Отдельная витрина карьерных дней, митапов, встреч с менторами и событий компаний.
+          Эта страница теперь берёт события из backend-каталога возможностей с фильтром{' '}
+          <code>opportunityType=event</code>.
         </p>
 
         <div className={styles.filters}>
@@ -181,7 +169,7 @@ export function EventsPage() {
           <select
             className={styles.select}
             value={format}
-            onChange={(e) => setFormat(e.target.value as 'all' | EventItem['format'])}
+            onChange={(e) => setFormat(e.target.value as 'all' | WorkFormat)}
           >
             <option value="all">Все форматы</option>
             <option value="office">Офлайн</option>
@@ -217,6 +205,8 @@ export function EventsPage() {
           <div className={styles.summaryText}>{registeredIds.length}</div>
         </div>
       </section>
+
+      {opportunitiesQuery.isLoading ? <div className={styles.emptyState}>Загружаем мероприятия…</div> : null}
 
       <section className={styles.list}>
         {filtered.map((item) => {
@@ -289,10 +279,8 @@ export function EventsPage() {
           );
         })}
 
-        {!filtered.length && (
-          <div className={styles.emptyState}>
-            По текущим фильтрам мероприятий не найдено.
-          </div>
+        {!opportunitiesQuery.isLoading && !filtered.length && (
+          <div className={styles.emptyState}>По текущим фильтрам мероприятий не найдено.</div>
         )}
       </section>
     </div>

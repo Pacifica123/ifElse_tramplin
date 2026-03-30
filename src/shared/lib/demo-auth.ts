@@ -44,8 +44,8 @@ export function authorizeDemoUser(email: string, password: string): SessionUser 
   }
 
   return {
-    id: crypto.randomUUID(),
-    name: account.name,
+    id: Date.now(),
+    displayName: account.name,
     email: account.email,
     role: account.role,
   };

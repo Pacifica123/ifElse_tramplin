@@ -12,3 +12,11 @@ export interface AuthSession {
   refreshToken: string;
   user: SessionUser;
 }
+
+export interface DemoAccount {
+  email: string;
+  password: string;
+  name: string;
+  role: UserRole;
+  description: string;
+}

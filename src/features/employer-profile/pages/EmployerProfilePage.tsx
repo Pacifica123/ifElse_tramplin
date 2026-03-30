@@ -1,23 +1,41 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/providers/AuthProvider';
 import styles from '@/app/styles/EmployerProfilePage.module.css';
+import {
+  getEmployerProfileMe,
+  updateEmployerProfileMe,
+  type EmployerProfile,
+  type EmployerProfileUpdatePayload,
+  type VerificationStatus,
+} from '@/shared/api/employerProfile';
+import {
+  createEmployerVerificationRequest,
+  getEmployerVerificationRequest,
+} from '@/shared/api/employerDashboard';
+import { getErrorMessage } from '@/shared/api/errors';
 
-type VerificationStatus = 'pending' | 'verified' | 'rejected';
-
-type EmployerProfileDraft = {
+interface EmployerProfileDraft {
   companyName: string;
   shortDescription: string;
   industry: string;
   websiteUrl: string;
-  cityName: string;
+  cityId: string;
   promoVideoUrl: string;
   socialLinksText: string;
   officePhotosText: string;
-  verificationStatus: VerificationStatus;
-  verificationComment: string;
-};
+}
 
-const STORAGE_KEY = 'trampolin.employerProfileDraft.v1';
+const emptyDraft: EmployerProfileDraft = {
+  companyName: '',
+  shortDescription: '',
+  industry: '',
+  websiteUrl: '',
+  cityId: '',
+  promoVideoUrl: '',
+  socialLinksText: '',
+  officePhotosText: '',
+};
 
 function prettyRole(role?: string) {
   switch (role) {
@@ -65,76 +83,119 @@ function splitLines(value: string) {
     .filter(Boolean);
 }
 
+function toDraft(profile: EmployerProfile, fallbackName?: string): EmployerProfileDraft {
+  return {
+    companyName: profile.companyName || fallbackName || '',
+    shortDescription: profile.shortDescription ?? '',
+    industry: profile.industry ?? '',
+    websiteUrl: profile.websiteUrl ?? '',
+    cityId: profile.cityId?.toString() ?? '',
+    promoVideoUrl: profile.promoVideoUrl ?? '',
+    socialLinksText: profile.socialLinks.join('\n'),
+    officePhotosText: profile.officePhotos.join('\n'),
+  };
+}
+
+function toPayload(draft: EmployerProfileDraft): EmployerProfileUpdatePayload {
+  return {
+    companyName: draft.companyName.trim(),
+    shortDescription: draft.shortDescription.trim() || null,
+    industry: draft.industry.trim() || null,
+    websiteUrl: draft.websiteUrl.trim() || null,
+    cityId: draft.cityId.trim() ? Number(draft.cityId) : null,
+    promoVideoUrl: draft.promoVideoUrl.trim() || null,
+    socialLinks: splitLines(draft.socialLinksText),
+    officePhotos: splitLines(draft.officePhotosText),
+  };
+}
+
 export function EmployerProfilePage() {
   const { user } = useAuth();
-
-  const baseDraft = useMemo<EmployerProfileDraft>(
-    () => ({
-      companyName: user?.displayName ?? '',
-      shortDescription: '',
-      industry: '',
-      websiteUrl: '',
-      cityName: '',
-      promoVideoUrl: '',
-      socialLinksText: '',
-      officePhotosText: '',
-      verificationStatus: 'pending',
-      verificationComment:
-        'Статус пока локальный. Позже сюда подключится backend employer-profile/me.',
-    }),
-    [user],
-  );
-
-  const [draft, setDraft] = useState<EmployerProfileDraft>(baseDraft);
-  const [savedDraft, setSavedDraft] = useState<EmployerProfileDraft>(baseDraft);
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState<EmployerProfileDraft>(emptyDraft);
+  const [savedDraft, setSavedDraft] = useState<EmployerProfileDraft>(emptyDraft);
   const [isEditing, setIsEditing] = useState(false);
+  const [verificationCommentDraft, setVerificationCommentDraft] = useState('');
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const profileQuery = useQuery({
+    queryKey: ['employer-profile', 'me'],
+    queryFn: getEmployerProfileMe,
+  });
+
+  const verificationRequestQuery = useQuery({
+    queryKey: ['employer-verification-request', 'me'],
+    queryFn: getEmployerVerificationRequest,
+    retry: false,
+  });
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+    if (!profileQuery.data) return;
+    const nextDraft = toDraft(profileQuery.data, user?.displayName);
+    setDraft(nextDraft);
+    setSavedDraft(nextDraft);
+  }, [profileQuery.data, user?.displayName]);
 
-      if (!raw) {
-        setDraft(baseDraft);
-        setSavedDraft(baseDraft);
-        return;
-      }
+  const saveMutation = useMutation({
+    mutationFn: updateEmployerProfileMe,
+    onSuccess: (profile) => {
+      queryClient.setQueryData(['employer-profile', 'me'], profile);
+      const nextDraft = toDraft(profile, user?.displayName);
+      setDraft(nextDraft);
+      setSavedDraft(nextDraft);
+      setIsEditing(false);
+      setSuccess('Профиль компании сохранён');
+    },
+  });
 
-      const parsed = JSON.parse(raw) as Partial<EmployerProfileDraft>;
+  const verificationMutation = useMutation({
+    mutationFn: createEmployerVerificationRequest,
+    onSuccess: (request) => {
+      queryClient.setQueryData(['employer-verification-request', 'me'], request);
+      setVerificationCommentDraft('');
+      setSuccess('Запрос на верификацию отправлен');
+    },
+  });
 
-      const merged: EmployerProfileDraft = {
-        ...baseDraft,
-        ...parsed,
-        companyName: parsed.companyName?.trim() || baseDraft.companyName,
-      };
+  const socialLinks = splitLines(draft.socialLinksText);
+  const officePhotos = splitLines(draft.officePhotosText);
 
-      setDraft(merged);
-      setSavedDraft(merged);
-    } catch {
-      setDraft(baseDraft);
-      setSavedDraft(baseDraft);
+  const effectiveVerificationStatus = profileQuery.data?.verificationStatus ?? 'pending';
+  const verificationRequest = verificationRequestQuery.data;
+  const verificationRequestMissing = verificationRequestQuery.isError;
+
+  const verificationNote = useMemo(() => {
+    if (verificationRequest) {
+      return `Запрос уже существует: статус ${verificationRequest.status}.`;
     }
-  }, [baseDraft]);
+    if (verificationRequestMissing) {
+      return 'Запрос на верификацию ещё не отправлялся.';
+    }
+    return 'Проверяем состояние запроса…';
+  }, [verificationRequest, verificationRequestMissing]);
 
-  const updateField = <K extends keyof EmployerProfileDraft>(
-    key: K,
-    value: EmployerProfileDraft[K],
-  ) => {
+  const updateField = <K extends keyof EmployerProfileDraft>(key: K, value: EmployerProfileDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
+    setSuccess(null);
   };
 
   const handleSave = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    setSavedDraft(draft);
-    setIsEditing(false);
+    saveMutation.mutate(toPayload(draft));
   };
 
   const handleCancel = () => {
     setDraft(savedDraft);
     setIsEditing(false);
+    setSuccess(null);
   };
 
-  const socialLinks = splitLines(draft.socialLinksText);
-  const officePhotos = splitLines(draft.officePhotosText);
+  if (profileQuery.isLoading) {
+    return <div>Загружаем профиль работодателя…</div>;
+  }
+
+  if (profileQuery.isError) {
+    return <div>Не удалось загрузить профиль работодателя: {getErrorMessage(profileQuery.error)}</div>;
+  }
 
   return (
     <div className={styles.page}>
@@ -142,7 +203,7 @@ export function EmployerProfilePage() {
         <div className={styles.heroTop}>
           <div>
             <h1 className={styles.title}>Профиль работодателя</h1>
-            <p className={styles.subtitle}>Карточка компании и статус верификации.</p>
+            <p className={styles.subtitle}>Страница уже читает и сохраняет данные через backend API.</p>
           </div>
 
           <div className={styles.actions}>
@@ -155,13 +216,18 @@ export function EmployerProfilePage() {
                 <button className="btn btn--secondary" type="button" onClick={handleCancel}>
                   Отменить
                 </button>
-                <button className="btn" type="button" onClick={handleSave}>
-                  Сохранить
+                <button className="btn" type="button" onClick={handleSave} disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? 'Сохраняем…' : 'Сохранить'}
                 </button>
               </>
             )}
           </div>
         </div>
+
+        {success ? <p style={{ color: '#027a48', marginTop: 14 }}>{success}</p> : null}
+        {saveMutation.isError ? (
+          <p style={{ color: '#b42318', marginTop: 14 }}>{getErrorMessage(saveMutation.error)}</p>
+        ) : null}
       </section>
 
       <section className={styles.grid}>
@@ -212,12 +278,12 @@ export function EmployerProfilePage() {
                 </label>
 
                 <label className={styles.field}>
-                  <span>Город</span>
+                  <span>City ID</span>
                   <input
-                    value={draft.cityName}
-                    onChange={(e) => updateField('cityName', e.target.value)}
+                    value={draft.cityId}
+                    onChange={(e) => updateField('cityId', e.target.value)}
                     disabled={!isEditing}
-                    placeholder="Кемерово"
+                    placeholder="Например, 1"
                   />
                 </label>
               </div>
@@ -288,25 +354,42 @@ export function EmployerProfilePage() {
           <article className={styles.card}>
             <h2 className={styles.cardTitle}>Верификация</h2>
 
-            <div className={`${styles.statusBadge} ${statusClass(draft.verificationStatus)}`}>
-              {prettyStatus(draft.verificationStatus)}
+            <div className={`${styles.statusBadge} ${statusClass(effectiveVerificationStatus)}`}>
+              {prettyStatus(effectiveVerificationStatus)}
             </div>
 
-            <label className={styles.field}>
-              <span>Комментарий по статусу</span>
-              <textarea
-                rows={4}
-                value={draft.verificationComment}
-                onChange={(e) => updateField('verificationComment', e.target.value)}
-                disabled={!isEditing}
-                placeholder="Комментарий куратора или внутреннее примечание"
-              />
-            </label>
+            <div className={styles.note}>{profileQuery.data?.verificationComment || 'Комментарий куратора пока отсутствует.'}</div>
+            <div className={styles.note}>{verificationNote}</div>
 
-            <div className={styles.note}>
-              Сейчас это локальная форма. Когда backend добьёт `GET/PATCH /employer-profile/me`,
-              страницу можно будет переключить на реальные данные.
-            </div>
+            {effectiveVerificationStatus !== 'verified' ? (
+              <>
+                <label className={styles.field}>
+                  <span>Комментарий к запросу на верификацию</span>
+                  <textarea
+                    rows={4}
+                    value={verificationCommentDraft}
+                    onChange={(e) => setVerificationCommentDraft(e.target.value)}
+                    placeholder="Например, коротко опишите компанию и попросите проверить профиль"
+                    disabled={Boolean(verificationRequest) || verificationMutation.isPending}
+                  />
+                </label>
+
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={Boolean(verificationRequest) || verificationMutation.isPending}
+                  onClick={() => verificationMutation.mutate(verificationCommentDraft || undefined)}
+                >
+                  {verificationMutation.isPending ? 'Отправляем…' : 'Отправить запрос на верификацию'}
+                </button>
+
+                {verificationMutation.isError ? (
+                  <p style={{ color: '#b42318', marginTop: 12 }}>
+                    {getErrorMessage(verificationMutation.error)}
+                  </p>
+                ) : null}
+              </>
+            ) : null}
           </article>
 
           <article className={styles.card}>
@@ -324,8 +407,8 @@ export function EmployerProfilePage() {
               </div>
 
               <div>
-                <div className={styles.muted}>Город</div>
-                <span>{draft.cityName || '—'}</span>
+                <div className={styles.muted}>City ID</div>
+                <span>{draft.cityId || '—'}</span>
               </div>
 
               <div>

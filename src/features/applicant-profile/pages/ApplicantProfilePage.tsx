@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/providers/AuthProvider';
+import {
+  getApplicantProfileMe,
+  updateApplicantProfileMe,
+  type ApplicantProfile,
+  type ApplicantProfileUpdatePayload,
+} from '@/shared/api/applicantProfile';
+import { getErrorMessage } from '@/shared/api/errors';
 
-type ApplicantProfileDraft = {
+interface ApplicantProfileDraft {
   fullName: string;
   university: string;
   studyCourse: string;
   graduationYear: string;
   about: string;
   resumeText: string;
-  skillsText: string;
   portfolioLinksText: string;
-};
+}
 
 const emptyDraft: ApplicantProfileDraft = {
   fullName: '',
@@ -19,46 +26,67 @@ const emptyDraft: ApplicantProfileDraft = {
   graduationYear: '',
   about: '',
   resumeText: '',
-  skillsText: '',
   portfolioLinksText: '',
 };
 
-function parseStoredDraft(raw: string | null): ApplicantProfileDraft | null {
-  if (!raw) return null;
+function toDraft(profile: ApplicantProfile, fallbackName?: string): ApplicantProfileDraft {
+  return {
+    fullName: profile.fullName || fallbackName || '',
+    university: profile.university ?? '',
+    studyCourse: profile.studyCourse ?? '',
+    graduationYear: profile.graduationYear?.toString() ?? '',
+    about: profile.about ?? '',
+    resumeText: profile.resumeText ?? '',
+    portfolioLinksText: profile.portfolioLinks.join('\n'),
+  };
+}
 
-  try {
-    const data = JSON.parse(raw) as Partial<ApplicantProfileDraft>;
-    return {
-      ...emptyDraft,
-      ...data,
-    };
-  } catch {
-    return null;
-  }
+function buildPayload(draft: ApplicantProfileDraft): ApplicantProfileUpdatePayload {
+  return {
+    fullName: draft.fullName.trim(),
+    university: draft.university.trim() || null,
+    studyCourse: draft.studyCourse.trim() || null,
+    graduationYear: draft.graduationYear.trim() ? Number(draft.graduationYear) : null,
+    about: draft.about.trim() || null,
+    resumeText: draft.resumeText.trim() || null,
+    portfolioLinks: draft.portfolioLinksText
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  };
 }
 
 export function ApplicantProfilePage() {
   const { user } = useAuth();
-  const storageKey = useMemo(
-    () => `trampolin.applicant-profile.${user?.id ?? 'guest'}`,
-    [user?.id],
-  );
-
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState<ApplicantProfileDraft>(emptyDraft);
   const [savedDraft, setSavedDraft] = useState<ApplicantProfileDraft>(emptyDraft);
   const [isEditing, setIsEditing] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const profileQuery = useQuery({
+    queryKey: ['applicant-profile', 'me'],
+    queryFn: getApplicantProfileMe,
+  });
 
   useEffect(() => {
-    const stored = parseStoredDraft(localStorage.getItem(storageKey));
-
-    const nextDraft: ApplicantProfileDraft = stored ?? {
-      ...emptyDraft,
-      fullName: user?.displayName ?? '',
-    };
-
+    if (!profileQuery.data) return;
+    const nextDraft = toDraft(profileQuery.data, user?.displayName);
     setDraft(nextDraft);
     setSavedDraft(nextDraft);
-  }, [storageKey, user?.displayName]);
+  }, [profileQuery.data, user?.displayName]);
+
+  const saveMutation = useMutation({
+    mutationFn: updateApplicantProfileMe,
+    onSuccess: (profile) => {
+      queryClient.setQueryData(['applicant-profile', 'me'], profile);
+      const nextDraft = toDraft(profile, user?.displayName);
+      setDraft(nextDraft);
+      setSavedDraft(nextDraft);
+      setIsEditing(false);
+      setSuccess('Профиль сохранён');
+    },
+  });
 
   const initials = useMemo(() => {
     const source = draft.fullName || user?.displayName || 'Профиль';
@@ -70,33 +98,25 @@ export function ApplicantProfilePage() {
       .join('');
   }, [draft.fullName, user?.displayName]);
 
-  const skills = useMemo(
-    () => draft.skillsText.split(',').map((item) => item.trim()).filter(Boolean),
-    [draft.skillsText],
-  );
-
-  const links = useMemo(
-    () =>
-      draft.portfolioLinksText
-        .split('\n')
-        .map((item) => item.trim())
-        .filter(Boolean),
-    [draft.portfolioLinksText],
-  );
+  const skills = profileQuery.data?.skills ?? [];
+  const links = draft.portfolioLinksText
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
 
   const updateField = (field: keyof ApplicantProfileDraft, value: string) => {
     setDraft((prev) => ({ ...prev, [field]: value }));
+    setSuccess(null);
   };
 
   const handleSave = () => {
-    localStorage.setItem(storageKey, JSON.stringify(draft));
-    setSavedDraft(draft);
-    setIsEditing(false);
+    saveMutation.mutate(buildPayload(draft));
   };
 
   const handleCancel = () => {
     setDraft(savedDraft);
     setIsEditing(false);
+    setSuccess(null);
   };
 
   const panelStyle: React.CSSProperties = {
@@ -147,6 +167,14 @@ export function ApplicantProfilePage() {
     background: '#fff',
   };
 
+  if (profileQuery.isLoading) {
+    return <div>Загружаем профиль соискателя…</div>;
+  }
+
+  if (profileQuery.isError) {
+    return <div>Не удалось загрузить профиль: {getErrorMessage(profileQuery.error)}</div>;
+  }
+
   return (
     <div style={{ display: 'grid', gap: 20 }}>
       <section style={panelStyle}>
@@ -162,7 +190,7 @@ export function ApplicantProfilePage() {
           <div>
             <h1 style={{ margin: 0, fontSize: 56, lineHeight: 1.02 }}>Профиль соискателя</h1>
             <p style={{ ...mutedStyle, marginTop: 10, fontSize: 18 }}>
-              Здесь можно показать основные данные пользователя и дать ему возможность редактировать профиль.
+              Страница уже подключена к backend: читает и сохраняет <code>/applicant-profile/me</code>.
             </p>
           </div>
 
@@ -173,8 +201,8 @@ export function ApplicantProfilePage() {
               </button>
             ) : (
               <>
-                <button className="btn" type="button" onClick={handleSave}>
-                  Сохранить
+                <button className="btn" type="button" onClick={handleSave} disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? 'Сохраняем…' : 'Сохранить'}
                 </button>
                 <button className="btn btn--secondary" type="button" onClick={handleCancel}>
                   Отменить
@@ -183,6 +211,11 @@ export function ApplicantProfilePage() {
             )}
           </div>
         </div>
+
+        {success ? <p style={{ color: '#027a48', marginTop: 14 }}>{success}</p> : null}
+        {saveMutation.isError ? (
+          <p style={{ color: '#b42318', marginTop: 14 }}>{getErrorMessage(saveMutation.error)}</p>
+        ) : null}
       </section>
 
       <section
@@ -212,7 +245,7 @@ export function ApplicantProfilePage() {
 
           <div style={{ display: 'grid', gap: 14 }}>
             <div style={metaCardStyle}>
-              <p style={{ ...mutedStyle, fontSize: 13 }}>Отображаемое имя</p>
+              <p style={{ ...mutedStyle, fontSize: 13 }}>Отображаемое имя аккаунта</p>
               <strong style={{ fontSize: 20 }}>{user?.displayName ?? '—'}</strong>
             </div>
 
@@ -227,8 +260,18 @@ export function ApplicantProfilePage() {
             </div>
 
             <div style={metaCardStyle}>
-              <p style={{ ...mutedStyle, fontSize: 13 }}>Статус профиля</p>
-              <strong>{isEditing ? 'Редактирование' : 'Черновик / локальные данные'}</strong>
+              <p style={{ ...mutedStyle, fontSize: 13 }}>Навыки из backend-профиля</p>
+              {skills.length ? (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {skills.map((skill) => (
+                    <span key={skill} className="chip">
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span>Пока не заполнены</span>
+              )}
             </div>
           </div>
         </div>
@@ -272,7 +315,7 @@ export function ApplicantProfilePage() {
                     style={inputStyle}
                     value={draft.studyCourse}
                     onChange={(event) => updateField('studyCourse', event.target.value)}
-                    placeholder="3 курс, Программная инженерия"
+                    placeholder="Например, 4 курс"
                   />
                 ) : (
                   <div style={metaCardStyle}>{draft.studyCourse || 'Не заполнено'}</div>
@@ -286,7 +329,7 @@ export function ApplicantProfilePage() {
                     style={inputStyle}
                     value={draft.graduationYear}
                     onChange={(event) => updateField('graduationYear', event.target.value)}
-                    placeholder="2027"
+                    placeholder="Например, 2027"
                   />
                 ) : (
                   <div style={metaCardStyle}>{draft.graduationYear || 'Не заполнено'}</div>
@@ -305,97 +348,47 @@ export function ApplicantProfilePage() {
                     style={textareaStyle}
                     value={draft.about}
                     onChange={(event) => updateField('about', event.target.value)}
-                    placeholder="Коротко опиши себя, свои цели и интересы"
                   />
                 ) : (
-                  <div style={metaCardStyle}>{draft.about || 'Добавь краткое описание профиля.'}</div>
+                  <div style={metaCardStyle}>{draft.about || 'Не заполнено'}</div>
                 )}
               </div>
 
               <div>
-                <label style={labelStyle}>Резюме / портфолио</label>
+                <label style={labelStyle}>Резюме / портфолио текстом</label>
                 {isEditing ? (
                   <textarea
                     style={textareaStyle}
                     value={draft.resumeText}
                     onChange={(event) => updateField('resumeText', event.target.value)}
-                    placeholder="Опыт проектов, участие в хакатонах, стажировках и т.д."
                   />
                 ) : (
-                  <div style={metaCardStyle}>{draft.resumeText || 'Пока пусто.'}</div>
+                  <div style={metaCardStyle}>{draft.resumeText || 'Не заполнено'}</div>
                 )}
               </div>
             </div>
           </section>
 
           <section style={sectionStyle}>
-            <h2 style={{ margin: '0 0 16px', fontSize: 28 }}>Навыки и ссылки</h2>
-            <div style={{ display: 'grid', gap: 16 }}>
-              <div>
-                <label style={labelStyle}>Навыки</label>
-                {isEditing ? (
-                  <input
-                    style={inputStyle}
-                    value={draft.skillsText}
-                    onChange={(event) => updateField('skillsText', event.target.value)}
-                    placeholder="React, TypeScript, SQL, UI/UX"
-                  />
-                ) : (
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {skills.length ? (
-                      skills.map((skill) => (
-                        <span
-                          key={skill}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: 999,
-                            background: '#eef4ff',
-                            color: '#2043a3',
-                            fontWeight: 600,
-                          }}
-                        >
-                          {skill}
-                        </span>
-                      ))
-                    ) : (
-                      <div style={metaCardStyle}>Навыки пока не заполнены.</div>
-                    )}
-                  </div>
-                )}
+            <h2 style={{ margin: '0 0 16px', fontSize: 28 }}>Ссылки на портфолио</h2>
+            {isEditing ? (
+              <textarea
+                style={textareaStyle}
+                value={draft.portfolioLinksText}
+                onChange={(event) => updateField('portfolioLinksText', event.target.value)}
+                placeholder={'По одной ссылке с новой строки\nhttps://github.com/username\nhttps://t.me/username'}
+              />
+            ) : links.length ? (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {links.map((link) => (
+                  <a key={link} href={link} target="_blank" rel="noreferrer" className="card-link">
+                    {link}
+                  </a>
+                ))}
               </div>
-
-              <div>
-                <label style={labelStyle}>Ссылки на портфолио</label>
-                {isEditing ? (
-                  <textarea
-                    style={{ ...textareaStyle, minHeight: 100 }}
-                    value={draft.portfolioLinksText}
-                    onChange={(event) => updateField('portfolioLinksText', event.target.value)}
-                    placeholder={['https://github.com/username', 'https://t.me/username', 'https://portfolio.example.com'].join('\n')}
-                  />
-                ) : links.length ? (
-                  <div style={{ display: 'grid', gap: 10 }}>
-                    {links.map((link) => (
-                      <a
-                        key={link}
-                        href={link}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          ...metaCardStyle,
-                          color: '#1f57c5',
-                          textDecoration: 'underline',
-                        }}
-                      >
-                        {link}
-                      </a>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={metaCardStyle}>Ссылки пока не добавлены.</div>
-                )}
-              </div>
-            </div>
+            ) : (
+              <div style={metaCardStyle}>Ссылки пока не добавлены</div>
+            )}
           </section>
         </div>
       </section>
