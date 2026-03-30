@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::{header, HeaderMap},
     Json,
 };
@@ -10,7 +10,14 @@ use crate::{
     state::AppState,
 };
 
-use super::{dto::{ApplicantProfileResponse, ApplicantProfileUpdateRequest}, service};
+use super::{
+    dto::{
+        ApplicantProfileResponse,
+        ApplicantProfileUpdateRequest,
+        ApplicantProfileViewResponse,
+    },
+    service,
+};
 
 pub async fn get_current(
     State(state): State<AppState>,
@@ -29,6 +36,16 @@ pub async fn patch_current(
     let user_id = resolve_user_id(&state, &headers).await?;
     let profile = service::update_current_profile(&state.db, user_id, req).await?;
     Ok(Json(profile.into()))
+}
+
+pub async fn get_by_id(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(applicant_profile_id): Path<i64>,
+) -> AppResult<Json<ApplicantProfileViewResponse>> {
+    let viewer_user_id = resolve_user_id(&state, &headers).await?;
+    let payload = service::get_visible_profile(&state.db, viewer_user_id, applicant_profile_id).await?;
+    Ok(Json(payload))
 }
 
 async fn resolve_user_id(state: &AppState, headers: &HeaderMap) -> AppResult<i64> {

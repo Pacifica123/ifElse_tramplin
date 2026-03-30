@@ -6,10 +6,14 @@ use serde::Serialize;
 use serde_json::json;
 
 use crate::{
-    auth::handler::{login, register},
+    auth::handler::{login, logout, refresh, register},
     error::{AppError, AppResult},
     modules::{
-        applicant_profiles::handler::{get_current as get_current_applicant_profile, patch_current as update_current_applicant_profile},
+       applicant_profiles::handler::{
+            get_by_id as get_applicant_profile_by_id,
+            get_current as get_current_applicant_profile,
+            patch_current as update_current_applicant_profile,
+        },
         applications::handler::{
             create_application,
             list_employer_applications_for_opportunity,
@@ -36,7 +40,19 @@ use crate::{
             get_current_verification_request,
         },
         employer_profiles::handler::{get_current as get_current_employer_profile, patch_current as update_current_employer_profile},
+        favorites::handler::{
+            add_favorite_employer,
+            add_favorite_opportunity,
+            list_favorite_employers,
+            list_favorite_opportunities,
+            remove_favorite_employer,
+            remove_favorite_opportunity,
+        },
         me::handler::get_me,
+        privacy_settings::handler::{
+            get_my_privacy_settings,
+            patch_my_privacy_settings,
+        },
         opportunities::handler::{
             create_own_opportunity,
             get_public_opportunity_by_id,
@@ -46,6 +62,12 @@ use crate::{
             update_own_opportunity_status,
         },
         tags::handler::list_tags,
+        contacts::handler::{
+            create_contact_request,
+            list_contacts,
+            patch_contact_status,
+            get_career_interests,
+        },
     },
     state::AppState,
 };
@@ -55,18 +77,32 @@ pub fn api_router() -> Router<AppState> {
         .route("/health", get(api_health))
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
-        .route("/auth/refresh", post(not_implemented))
-        .route("/auth/logout", post(not_implemented))
+        .route("/auth/refresh", post(refresh))
+        .route("/auth/logout", post(logout))
         .route("/me", get(get_me))
         .route(
             "/applicant-profile/me",
             get(get_current_applicant_profile).patch(update_current_applicant_profile),
         )
         .route(
+            "/applicant-profiles/{applicantProfileId}",
+            get(get_applicant_profile_by_id),
+        )
+        .route(
             "/employer-profile/me",
             get(get_current_employer_profile).patch(update_current_employer_profile),
         )
-        .route("/privacy-settings/me", get(not_implemented).patch(not_implemented))
+        .route("/privacy-settings/me", get(get_my_privacy_settings).patch(patch_my_privacy_settings))
+        .route(
+            "/favorites/opportunities",
+            get(list_favorite_opportunities),
+        )
+        .route("/favorites/opportunities/{id}", post(add_favorite_opportunity).delete(remove_favorite_opportunity))
+        .route(
+            "/favorites/employers",
+            get(list_favorite_employers),
+        )
+        .route("/favorites/employers/{employerProfileId}", post(add_favorite_employer).delete(remove_favorite_employer))
         .route("/opportunities", get(list_public_opportunities).post(create_own_opportunity))
         .route(
             "/opportunities/{id}",
@@ -80,7 +116,7 @@ pub fn api_router() -> Router<AppState> {
             get(list_employer_applications_for_opportunity),
         )
         .route("/applications/{id}/status", patch(update_application_status))
-        .route("/tags", get(list_tags).post(not_implemented))
+        .route("/tags", get(list_tags).post(list_tags))
         .route(
             "/employer/verification-request",
             get(get_current_verification_request).post(create_current_verification_request),
@@ -107,6 +143,13 @@ pub fn api_router() -> Router<AppState> {
             get(curator_get_opportunity_by_id).patch(curator_update_opportunity_by_id),
         )
         .route("/admin/curators", post(create_curator))
+        .route("/contacts", get(list_contacts))
+        .route("/contacts/requests", post(create_contact_request))
+        .route("/contacts/{id}", patch(patch_contact_status))
+        .route(
+            "/contacts/applicant-profiles/{applicantProfileId}/career-interests",
+            get(get_career_interests),
+        )
 }
 
 #[derive(Debug, Serialize)]

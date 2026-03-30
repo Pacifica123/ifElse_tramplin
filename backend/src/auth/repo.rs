@@ -1,7 +1,18 @@
 use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{FromRow, PgPool, Postgres, Transaction};
 
 use crate::models::{AppRole, UserRow};
+
+#[derive(Debug, Clone, FromRow)]
+pub struct RefreshTokenRow {
+    pub id: i64,
+    pub user_id: i64,
+    pub token_hash: String,
+    pub expires_at: DateTime<Utc>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub user_agent: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
 
 pub async fn find_user_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
@@ -137,6 +148,48 @@ pub async fn insert_refresh_token(
     .await?;
 
     Ok(())
+}
+
+pub async fn find_refresh_token_by_hash(
+    pool: &PgPool,
+    token_hash: &str,
+) -> Result<Option<RefreshTokenRow>, sqlx::Error> {
+    sqlx::query_as::<_, RefreshTokenRow>(
+        r#"
+        select
+            id,
+            user_id,
+            token_hash,
+            expires_at,
+            revoked_at,
+            user_agent,
+            created_at
+        from refresh_tokens
+        where token_hash = $1
+        "#,
+    )
+    .bind(token_hash)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn revoke_refresh_token_by_hash(
+    pool: &PgPool,
+    token_hash: &str,
+) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query(
+        r#"
+        update refresh_tokens
+        set revoked_at = now()
+        where token_hash = $1
+          and revoked_at is null
+        "#,
+    )
+    .bind(token_hash)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected())
 }
 
 pub async fn update_last_login(pool: &PgPool, user_id: i64) -> Result<(), sqlx::Error> {

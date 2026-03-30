@@ -179,3 +179,35 @@ pub struct ApplicationRow {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone, FromRow)]
+pub struct PrivacySettingsRow {
+    pub id: i64,
+    pub applicant_profile_id: i64,
+    pub resume_visible_to_contacts: bool,
+    pub resume_visible_to_all_auth: bool,
+    pub applications_visible_to_contacts: bool,
+    pub applications_visible_to_all_auth: bool,
+    pub profile_visible_to_all_auth: bool,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "contact_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum ContactStatus {
+    Pending,
+    Accepted,
+    Rejected,
+    Blocked,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct ContactRow {
+    pub id: i64,
+    pub requester_user_id: i64,
+    pub addressee_user_id: i64,
+    pub status: ContactStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}

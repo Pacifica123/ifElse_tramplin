@@ -12,7 +12,7 @@ use crate::{
 };
 
 use super::{
-    dto::{AuthResponse, LoginRequest, MeResponse, RegisterRequest},
+    dto::{AuthResponse, LoginRequest, LogoutRequest, MeResponse, RefreshTokenRequest, RegisterRequest},
     repo,
     token,
 };
@@ -87,6 +87,71 @@ pub async fn login(
     repo::update_last_login(pool, user.id).await?;
 
     issue_tokens(pool, auth, &user, user_agent).await
+}
+
+pub async fn refresh(
+    pool: &PgPool,
+    auth: &AuthSettings,
+    req: RefreshTokenRequest,
+    user_agent: Option<&str>,
+) -> AppResult<AuthResponse> {
+    let raw_refresh_token = req.refresh_token.trim();
+
+    if raw_refresh_token.is_empty() {
+        return Err(AppError::unauthorized("Invalid refresh token"));
+    }
+
+    let refresh_token_hash = token::hash_refresh_token(raw_refresh_token);
+
+    let stored = repo::find_refresh_token_by_hash(pool, &refresh_token_hash)
+        .await?
+        .ok_or_else(|| AppError::unauthorized("Invalid refresh token"))?;
+
+    if stored.revoked_at.is_some() {
+        return Err(AppError::unauthorized("Refresh token has been revoked"));
+    }
+
+    if stored.expires_at <= Utc::now() {
+        return Err(AppError::unauthorized("Refresh token has expired"));
+    }
+
+    let user = repo::find_user_by_id(pool, stored.user_id)
+        .await?
+        .ok_or_else(|| AppError::unauthorized("User not found"))?;
+
+    if !user.is_active {
+        return Err(AppError::forbidden("User is inactive"));
+    }
+
+    repo::revoke_refresh_token_by_hash(pool, &refresh_token_hash).await?;
+
+    issue_tokens(pool, auth, &user, user_agent).await
+}
+
+pub async fn logout(
+    pool: &PgPool,
+    current_user_id: i64,
+    req: LogoutRequest,
+) -> AppResult<()> {
+    let raw_refresh_token = req.refresh_token.trim();
+
+    if raw_refresh_token.is_empty() {
+        return Err(AppError::unauthorized("Invalid refresh token"));
+    }
+
+    let refresh_token_hash = token::hash_refresh_token(raw_refresh_token);
+
+    let stored = repo::find_refresh_token_by_hash(pool, &refresh_token_hash)
+        .await?
+        .ok_or_else(|| AppError::unauthorized("Invalid refresh token"))?;
+
+    if stored.user_id != current_user_id {
+        return Err(AppError::unauthorized("Refresh token does not belong to current user"));
+    }
+
+    repo::revoke_refresh_token_by_hash(pool, &refresh_token_hash).await?;
+
+    Ok(())
 }
 
 async fn issue_tokens(

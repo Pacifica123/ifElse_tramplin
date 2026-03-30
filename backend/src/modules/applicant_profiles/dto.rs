@@ -2,6 +2,32 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::models::ApplicantProfileRow;
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApplicantProfileVisibilityScope {
+    Owner,
+    Contact,
+    AllAuthorized,
+    Hidden,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplicantProfileViewResponse {
+    pub id: i64,
+    pub user_id: i64,
+    pub full_name: String,
+    pub university: Option<String>,
+    pub study_course: Option<String>,
+    pub graduation_year: Option<i32>,
+    pub about: Option<String>,
+    pub resume_text: Option<String>,
+    pub portfolio_links: Vec<String>,
+    pub skills: Vec<String>,
+    pub visibility_scope: ApplicantProfileVisibilityScope,
+    pub career_interests_visible: bool,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplicantProfileUpdateRequest {

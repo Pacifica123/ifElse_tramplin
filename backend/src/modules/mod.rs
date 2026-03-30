@@ -7,3 +7,6 @@ pub mod me;
 pub mod opportunities;
 pub mod tags;
 pub mod curator;
+pub mod favorites;
+pub mod privacy_settings;
+pub mod contacts;

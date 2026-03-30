@@ -2,6 +2,34 @@ use sqlx::PgPool;
 
 use crate::models::ApplicantProfileRow;
 
+pub async fn find_by_id(
+    pool: &PgPool,
+    applicant_profile_id: i64,
+) -> Result<Option<ApplicantProfileRow>, sqlx::Error> {
+    sqlx::query_as::<_, ApplicantProfileRow>(
+        r#"
+        select
+            id,
+            user_id,
+            full_name,
+            university,
+            study_course,
+            graduation_year,
+            about,
+            resume_text,
+            portfolio_links,
+            skills,
+            created_at,
+            updated_at
+        from applicant_profiles
+        where id = $1
+        "#,
+    )
+    .bind(applicant_profile_id)
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn find_by_user_id(pool: &PgPool, user_id: i64) -> Result<Option<ApplicantProfileRow>, sqlx::Error> {
     sqlx::query_as::<_, ApplicantProfileRow>(
         r#"

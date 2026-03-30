@@ -2,10 +2,21 @@ use sqlx::PgPool;
 
 use crate::{
     error::{AppError, AppResult},
-    models::ApplicantProfileRow,
+    models::{ApplicantProfileRow, ContactStatus},
+    modules::{
+        contacts::repo as contacts_repo,
+        privacy_settings::{dto::PrivacySettingsResponse, repo as privacy_repo},
+    },
 };
 
-use super::{dto::ApplicantProfileUpdateRequest, repo};
+use super::{
+    dto::{
+        ApplicantProfileUpdateRequest,
+        ApplicantProfileViewResponse,
+        ApplicantProfileVisibilityScope,
+    },
+    repo,
+};
 
 pub async fn get_current_profile(pool: &PgPool, user_id: i64) -> AppResult<ApplicantProfileRow> {
     repo::find_by_user_id(pool, user_id)
@@ -53,6 +64,92 @@ pub async fn update_current_profile(
     )
     .await
     .map_err(AppError::from)
+}
+
+pub async fn get_visible_profile(
+    pool: &PgPool,
+    viewer_user_id: i64,
+    applicant_profile_id: i64,
+) -> AppResult<ApplicantProfileViewResponse> {
+    let profile = repo::find_by_id(pool, applicant_profile_id)
+        .await?
+        .ok_or_else(|| AppError::not_found("Applicant profile not found"))?;
+
+    let privacy = get_or_create_privacy_settings(pool, profile.id).await?;
+
+    let is_owner = viewer_user_id == profile.user_id;
+
+    let is_contact = if is_owner {
+        false
+    } else {
+        contacts_repo::find_pair_contact(pool, viewer_user_id, profile.user_id)
+            .await?
+            .map(|c| c.status == ContactStatus::Accepted)
+            .unwrap_or(false)
+    };
+
+    let scope = if is_owner {
+        ApplicantProfileVisibilityScope::Owner
+    } else if is_contact {
+        ApplicantProfileVisibilityScope::Contact
+    } else if privacy.profile_visible_to_all_auth {
+        ApplicantProfileVisibilityScope::AllAuthorized
+    } else {
+        ApplicantProfileVisibilityScope::Hidden
+    };
+
+    if matches!(scope, ApplicantProfileVisibilityScope::Hidden) {
+        return Err(AppError::forbidden("Applicant profile is hidden by privacy settings"));
+    }
+
+    let resume_visible = match scope {
+        ApplicantProfileVisibilityScope::Owner => true,
+        ApplicantProfileVisibilityScope::Contact => privacy.resume_visible_to_contacts,
+        ApplicantProfileVisibilityScope::AllAuthorized => privacy.resume_visible_to_all_auth,
+        ApplicantProfileVisibilityScope::Hidden => false,
+    };
+
+    let career_interests_visible = match scope {
+        ApplicantProfileVisibilityScope::Owner => true,
+        ApplicantProfileVisibilityScope::Contact => privacy.applications_visible_to_contacts,
+        ApplicantProfileVisibilityScope::AllAuthorized => false,
+        ApplicantProfileVisibilityScope::Hidden => false,
+    };
+
+    Ok(ApplicantProfileViewResponse {
+        id: profile.id,
+        user_id: profile.user_id,
+        full_name: profile.full_name.clone().unwrap_or_default(),
+        university: profile.university.clone(),
+        study_course: profile.study_course.clone(),
+        graduation_year: profile.graduation_year,
+        about: profile.about.clone(),
+        resume_text: if resume_visible {
+            profile.resume_text.clone()
+        } else {
+            None
+        },
+        portfolio_links: if resume_visible {
+            json_value_to_vec_string(&profile.portfolio_links)
+        } else {
+            Vec::new()
+        },
+        skills: json_value_to_vec_string(&profile.skills),
+        visibility_scope: scope,
+        career_interests_visible,
+    })
+}
+
+async fn get_or_create_privacy_settings(
+    pool: &PgPool,
+    applicant_profile_id: i64,
+) -> AppResult<PrivacySettingsResponse> {
+    let row = match privacy_repo::find_by_applicant_profile_id(pool, applicant_profile_id).await? {
+        Some(row) => row,
+        None => privacy_repo::insert_default(pool, applicant_profile_id).await?,
+    };
+
+    Ok(PrivacySettingsResponse::from(&row))
 }
 
 fn clean_non_empty(value: String) -> String {

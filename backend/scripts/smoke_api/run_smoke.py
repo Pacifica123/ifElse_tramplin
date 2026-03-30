@@ -42,7 +42,12 @@ def parse_response_body(raw: bytes) -> Any:
         return text
 
 
-def http_request(method: str, url: str, json_body: Optional[dict] = None, headers: Optional[dict] = None) -> tuple[int, Any]:
+def http_request(
+    method: str,
+    url: str,
+    json_body: Optional[dict] = None,
+    headers: Optional[dict] = None,
+) -> tuple[int, Any]:
     body = None
     request_headers = {"Accept": "application/json"}
     if headers:
@@ -51,7 +56,12 @@ def http_request(method: str, url: str, json_body: Optional[dict] = None, header
         body = json.dumps(json_body).encode("utf-8")
         request_headers["Content-Type"] = "application/json"
 
-    req = urllib.request.Request(url=url, data=body, headers=request_headers, method=method.upper())
+    req = urllib.request.Request(
+        url=url,
+        data=body,
+        headers=request_headers,
+        method=method.upper(),
+    )
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             return resp.status, parse_response_body(resp.read())
@@ -61,23 +71,46 @@ def http_request(method: str, url: str, json_body: Optional[dict] = None, header
         return 0, f"Connection error: {e}"
 
 
-def run_step(results: list[StepResult], name: str, method: str, url: str, expected_status: int, json_body: Optional[dict] = None, headers: Optional[dict] = None) -> tuple[int, Any]:
+def run_step(
+    results: list[StepResult],
+    name: str,
+    method: str,
+    url: str,
+    expected_status: int,
+    json_body: Optional[dict] = None,
+    headers: Optional[dict] = None,
+) -> tuple[int, Any]:
     started = time.perf_counter()
     status, payload = http_request(method, url, json_body=json_body, headers=headers)
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     ok = status == expected_status
-    results.append(StepResult(name, method, url, expected_status, status, ok, elapsed_ms, pretty_preview(payload)))
+    results.append(
+        StepResult(
+            name,
+            method,
+            url,
+            expected_status,
+            status,
+            ok,
+            elapsed_ms,
+            pretty_preview(payload),
+        )
+    )
     return status, payload
 
 
 def append_local_result(results: list[StepResult], name: str, ok: bool, preview: Any) -> None:
-    results.append(StepResult(name, "LOCAL", "-", 1, 1 if ok else 0, ok, 0, pretty_preview(preview)))
+    results.append(
+        StepResult(name, "LOCAL", "-", 1, 1 if ok else 0, ok, 0, pretty_preview(preview))
+    )
 
 
-def auth_flow(results: list[StepResult], base_url: str, role: str) -> tuple[dict, str]:
+def auth_flow(results: list[StepResult], base_url: str, role: str) -> tuple[dict, str, str]:
     email = f"smoke_{uuid.uuid4().hex[:10]}@example.com"
     password = "password123"
     display_name = f"Smoke {role.title()}"
+
+    identity = {"email": email, "displayName": display_name, "role": role}
 
     run_step(results, "root health", "GET", f"{base_url}/health", 200)
     run_step(results, "api health", "GET", f"{base_url}/api/v1/health", 200)
@@ -88,7 +121,12 @@ def auth_flow(results: list[StepResult], base_url: str, role: str) -> tuple[dict
         "POST",
         f"{base_url}/api/v1/auth/register",
         201,
-        json_body={"email": email, "password": password, "displayName": display_name, "role": role},
+        json_body={
+            "email": email,
+            "password": password,
+            "displayName": display_name,
+            "role": role,
+        },
     )
 
     _, login_payload = run_step(
@@ -101,9 +139,14 @@ def auth_flow(results: list[StepResult], base_url: str, role: str) -> tuple[dict
     )
 
     access_token = login_payload.get("accessToken") if isinstance(login_payload, dict) else None
+    refresh_token = login_payload.get("refreshToken") if isinstance(login_payload, dict) else None
+
     if not access_token:
         append_local_result(results, "extract access token", False, "accessToken not found in login response")
-        return {"email": email, "displayName": display_name, "role": role}, ""
+        return identity, "", ""
+
+    if not refresh_token:
+        append_local_result(results, "extract refresh token", False, "refreshToken not found in login response")
 
     _, me_payload = run_step(
         results,
@@ -117,12 +160,14 @@ def auth_flow(results: list[StepResult], base_url: str, role: str) -> tuple[dict
     me_ok = isinstance(me_payload, dict) and me_payload.get("email") == email and me_payload.get("role") == role
     append_local_result(results, "me payload validation", me_ok, me_payload)
 
-    reg_ok = isinstance(register_payload, dict) and register_payload.get("user", {}).get("email") == email
+    reg_ok = (
+        isinstance(register_payload, dict)
+        and register_payload.get("user", {}).get("email") == email
+        and register_payload.get("user", {}).get("role") == role
+    )
     append_local_result(results, "register payload validation", reg_ok, register_payload)
 
-    return {"email": email, "displayName": display_name, "role": role}, access_token
-
-
+    return identity, access_token, refresh_token or ""
 
 
 def login_existing_user(results: list[StepResult], base_url: str, email: str, password: str) -> str:
@@ -140,6 +185,7 @@ def login_existing_user(results: list[StepResult], base_url: str, email: str, pa
         return ""
     return access_token
 
+
 def run_stub_mode(base_url: str) -> int:
     results: list[StepResult] = []
     run_step(results, "root health", "GET", f"{base_url}/health", 200)
@@ -150,13 +196,88 @@ def run_stub_mode(base_url: str) -> int:
 
 def run_auth_mode(base_url: str, role: str) -> int:
     results: list[StepResult] = []
-    auth_flow(results, base_url, role)
+    identity, access_token, refresh_token = auth_flow(results, base_url, role)
+
+    if not access_token or not refresh_token:
+        return print_summary(results)
+
+    _, refresh_payload = run_step(
+        results,
+        "refresh",
+        "POST",
+        f"{base_url}/api/v1/auth/refresh",
+        200,
+        json_body={"refreshToken": refresh_token},
+    )
+
+    new_access_token = refresh_payload.get("accessToken") if isinstance(refresh_payload, dict) else None
+    new_refresh_token = refresh_payload.get("refreshToken") if isinstance(refresh_payload, dict) else None
+
+    refresh_ok = (
+        isinstance(refresh_payload, dict)
+        and refresh_payload.get("user", {}).get("email") == identity["email"]
+        and refresh_payload.get("user", {}).get("role") == identity["role"]
+    )
+    append_local_result(results, "refresh payload validation", refresh_ok, refresh_payload)
+
+    if not new_access_token:
+        append_local_result(results, "extract refreshed access token", False, refresh_payload)
+        return print_summary(results)
+
+    if not new_refresh_token:
+        append_local_result(results, "extract refreshed refresh token", False, refresh_payload)
+        return print_summary(results)
+
+    _, me_after_refresh_payload = run_step(
+        results,
+        "me after refresh",
+        "GET",
+        f"{base_url}/api/v1/me",
+        200,
+        headers={"Authorization": f"Bearer {new_access_token}"},
+    )
+
+    me_after_refresh_ok = (
+        isinstance(me_after_refresh_payload, dict)
+        and me_after_refresh_payload.get("email") == identity["email"]
+        and me_after_refresh_payload.get("role") == identity["role"]
+    )
+    append_local_result(results, "me after refresh valid", me_after_refresh_ok, me_after_refresh_payload)
+
+    run_step(
+        results,
+        "old refresh revoked",
+        "POST",
+        f"{base_url}/api/v1/auth/refresh",
+        401,
+        json_body={"refreshToken": refresh_token},
+    )
+
+    run_step(
+        results,
+        "logout",
+        "POST",
+        f"{base_url}/api/v1/auth/logout",
+        204,
+        json_body={"refreshToken": new_refresh_token},
+        headers={"Authorization": f"Bearer {new_access_token}"},
+    )
+
+    run_step(
+        results,
+        "refresh after logout",
+        "POST",
+        f"{base_url}/api/v1/auth/refresh",
+        401,
+        json_body={"refreshToken": new_refresh_token},
+    )
+
     return print_summary(results)
 
 
 def run_profiles_mode(base_url: str, role: str) -> int:
     results: list[StepResult] = []
-    identity, access_token = auth_flow(results, base_url, role)
+    identity, access_token, _ = auth_flow(results, base_url, role)
     if not access_token:
         return print_summary(results)
 
@@ -171,7 +292,7 @@ def run_profiles_mode(base_url: str, role: str) -> int:
             "graduationYear": 2027,
             "about": "Backend trainee",
             "resumeText": "Rust + SQLx",
-            "portfolioLinks": ["https://github.com/example/applicant"]
+            "portfolioLinks": ["https://github.com/example/applicant"],
         }
         _, profile_payload = run_step(results, "get applicant profile", "GET", profile_url, 200, headers=headers)
         created_ok = isinstance(profile_payload, dict) and profile_payload.get("fullName") == identity["displayName"]
@@ -190,7 +311,7 @@ def run_profiles_mode(base_url: str, role: str) -> int:
             "socialLinks": ["https://t.me/example_employer"],
             "officePhotos": [],
             "promoVideoUrl": None,
-            "cityId": 1
+            "cityId": 1,
         }
         _, profile_payload = run_step(results, "get employer profile", "GET", profile_url, 200, headers=headers)
         created_ok = isinstance(profile_payload, dict) and profile_payload.get("companyName") == identity["displayName"]
@@ -239,7 +360,7 @@ def run_catalog_mode(base_url: str) -> int:
 
 def run_employer_dashboard_mode(base_url: str) -> int:
     results: list[StepResult] = []
-    _, access_token = auth_flow(results, base_url, "employer")
+    _, access_token, _ = auth_flow(results, base_url, "employer")
     if not access_token:
         return print_summary(results)
 
@@ -275,7 +396,7 @@ def run_employer_dashboard_mode(base_url: str) -> int:
         "tagIds": [1, 4],
         "contactInfo": {"email": "hr@example.com"},
         "resourceLinks": ["https://example.com/jobs/rust-intern"],
-        "media": []
+        "media": [],
     }
     run_step(results, "create opportunity forbidden", "POST", f"{base_url}/api/v1/opportunities", 403, json_body=create_payload, headers=headers)
 
@@ -286,20 +407,24 @@ def run_employer_dashboard_mode(base_url: str) -> int:
     return print_summary(results)
 
 
-
-
-
 def run_curator_mode(base_url: str) -> int:
     results: list[StepResult] = []
 
-    applicant_identity, applicant_token = auth_flow(results, base_url, "applicant")
+    applicant_identity, applicant_token, _ = auth_flow(results, base_url, "applicant")
     if not applicant_token:
         return print_summary(results)
     applicant_headers = {"Authorization": f"Bearer {applicant_token}"}
-    _, applicant_profile_payload = run_step(results, "get applicant profile me", "GET", f"{base_url}/api/v1/applicant-profile/me", 200, headers=applicant_headers)
+    _, applicant_profile_payload = run_step(
+        results,
+        "get applicant profile me",
+        "GET",
+        f"{base_url}/api/v1/applicant-profile/me",
+        200,
+        headers=applicant_headers,
+    )
     applicant_profile_id = applicant_profile_payload.get("id") if isinstance(applicant_profile_payload, dict) else None
 
-    _, employer_token = auth_flow(results, base_url, "employer")
+    _, employer_token, _ = auth_flow(results, base_url, "employer")
     if not employer_token:
         return print_summary(results)
     employer_headers = {"Authorization": f"Bearer {employer_token}"}
@@ -366,9 +491,17 @@ def run_curator_mode(base_url: str) -> int:
         "tagIds": [1, 4],
         "contactInfo": {"email": "hr@example.com"},
         "resourceLinks": ["https://example.com/jobs/curator-smoke"],
-        "media": []
+        "media": [],
     }
-    _, created_opportunity_payload = run_step(results, "create opportunity after approval", "POST", f"{base_url}/api/v1/opportunities", 201, json_body=create_payload, headers=employer_headers)
+    _, created_opportunity_payload = run_step(
+        results,
+        "create opportunity after approval",
+        "POST",
+        f"{base_url}/api/v1/opportunities",
+        201,
+        json_body=create_payload,
+        headers=employer_headers,
+    )
     opportunity_id = created_opportunity_payload.get("id") if isinstance(created_opportunity_payload, dict) else None
     append_local_result(results, "opportunity created after approval", opportunity_id is not None, created_opportunity_payload)
 
@@ -383,7 +516,13 @@ def run_curator_mode(base_url: str) -> int:
             "PATCH",
             f"{base_url}/api/v1/curator/opportunities/{opportunity_id}",
             200,
-            json_body={"shortDescription": "Updated by curator smoke flow", "publicationStatus": "pending_moderation", "tagIds": [1, 4], "cityId": 1, "contactInfo": {"email": "hr@example.com"}},
+            json_body={
+                "shortDescription": "Updated by curator smoke flow",
+                "publicationStatus": "pending_moderation",
+                "tagIds": [1, 4],
+                "cityId": 1,
+                "contactInfo": {"email": "hr@example.com"},
+            },
             headers=admin_headers,
         )
         opp_update_ok = isinstance(updated_opportunity_payload, dict) and updated_opportunity_payload.get("publicationStatus") == "pending_moderation"
@@ -400,7 +539,11 @@ def run_curator_mode(base_url: str) -> int:
             "PATCH",
             f"{base_url}/api/v1/curator/applicant-profiles/{applicant_profile_id}",
             200,
-            json_body={"about": "Reviewed by curator smoke", "fullName": "Curated Applicant", "portfolioLinks": ["https://github.com/example/applicant"]},
+            json_body={
+                "about": "Reviewed by curator smoke",
+                "fullName": "Curated Applicant",
+                "portfolioLinks": ["https://github.com/example/applicant"],
+            },
             headers=admin_headers,
         )
         applicant_update_ok = isinstance(updated_applicant_payload, dict) and updated_applicant_payload.get("fullName") == "Curated Applicant"
@@ -425,11 +568,13 @@ def run_curator_mode(base_url: str) -> int:
     curator_create_ok = isinstance(created_curator_payload, dict) and created_curator_payload.get("role") == "curator"
     append_local_result(results, "admin created curator", curator_create_ok, created_curator_payload)
 
+    append_local_result(results, "curator flow applicant identity", True, applicant_identity)
     return print_summary(results)
+
 
 def run_applications_mode(base_url: str) -> int:
     results: list[StepResult] = []
-    _, access_token = auth_flow(results, base_url, "applicant")
+    _, access_token, _ = auth_flow(results, base_url, "applicant")
     if not access_token:
         return print_summary(results)
 
@@ -475,6 +620,58 @@ def run_applications_mode(base_url: str) -> int:
 
     return print_summary(results)
 
+
+def run_privacy_mode(base_url: str) -> int:
+    results: list[StepResult] = []
+    _, access_token, _ = auth_flow(results, base_url, "applicant")
+    if not access_token:
+        return print_summary(results)
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    _, get_payload = run_step(
+        results,
+        "get privacy settings",
+        "GET",
+        f"{base_url}/api/v1/privacy-settings/me",
+        200,
+        headers=headers,
+    )
+    get_ok = isinstance(get_payload, dict) and "profileVisibleToAllAuth" in get_payload
+    append_local_result(results, "privacy settings auto-created", get_ok, get_payload)
+
+    patch_body = {
+        "resumeVisibleToContacts": True,
+        "resumeVisibleToAllAuth": False,
+        "applicationsVisibleToContacts": True,
+        "applicationsVisibleToAllAuth": False,
+        "profileVisibleToAllAuth": True,
+    }
+
+    run_step(
+        results,
+        "patch privacy settings",
+        "PATCH",
+        f"{base_url}/api/v1/privacy-settings/me",
+        200,
+        json_body=patch_body,
+        headers=headers,
+    )
+
+    _, after_payload = run_step(
+        results,
+        "get privacy settings again",
+        "GET",
+        f"{base_url}/api/v1/privacy-settings/me",
+        200,
+        headers=headers,
+    )
+    after_ok = isinstance(after_payload, dict) and after_payload.get("resumeVisibleToContacts") is True
+    append_local_result(results, "privacy settings updated", after_ok, after_payload)
+
+    return print_summary(results)
+
+
 def print_summary(results: list[StepResult]) -> int:
     print()
     print("=" * 96)
@@ -485,7 +682,15 @@ def print_summary(results: list[StepResult]) -> int:
         mark = "PASS" if item.ok else "FAIL"
         if not item.ok:
             failed += 1
-        print(f"{mark:<4} {item.name[:28]:<28} {item.method:<8} {item.expected_status!s:<5} {item.actual_status!s:<5} {item.elapsed_ms!s:<6} {item.response_preview}")
+        print(
+            f"{mark:<4} "
+            f"{item.name[:28]:<28} "
+            f"{item.method:<8} "
+            f"{item.expected_status!s:<5} "
+            f"{item.actual_status!s:<5} "
+            f"{item.elapsed_ms!s:<6} "
+            f"{item.response_preview}"
+        )
     print("-" * 96)
     print(f"Total: {len(results)} | Passed: {len(results) - failed} | Failed: {failed}")
     print("=" * 96)
@@ -493,10 +698,248 @@ def print_summary(results: list[StepResult]) -> int:
     return 1 if failed else 0
 
 
+def run_favorites_mode(base_url: str) -> int:
+    results: list[StepResult] = []
+    _, access_token, _ = auth_flow(results, base_url, "applicant")
+    if not access_token:
+        return print_summary(results)
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    _, initial_fav_opps = run_step(
+        results,
+        "list favorite opportunities initial",
+        "GET",
+        f"{base_url}/api/v1/favorites/opportunities",
+        200,
+        headers=headers,
+    )
+    initial_opps_ok = isinstance(initial_fav_opps, list)
+    append_local_result(results, "favorite opportunities initial shape", initial_opps_ok, initial_fav_opps)
+
+    _, initial_fav_employers = run_step(
+        results,
+        "list favorite employers initial",
+        "GET",
+        f"{base_url}/api/v1/favorites/employers",
+        200,
+        headers=headers,
+    )
+    initial_employers_ok = isinstance(initial_fav_employers, list)
+    append_local_result(results, "favorite employers initial shape", initial_employers_ok, initial_fav_employers)
+
+    _, opportunities_payload = run_step(
+        results,
+        "list opportunities",
+        "GET",
+        f"{base_url}/api/v1/opportunities",
+        200,
+    )
+    items = opportunities_payload.get("items", []) if isinstance(opportunities_payload, dict) else []
+    if not items:
+        append_local_result(results, "catalog has opportunities", False, opportunities_payload)
+        return print_summary(results)
+
+    first_item = items[0]
+    opportunity_id = first_item.get("id")
+    employer_profile_id = first_item.get("employerProfileId")
+
+    append_local_result(results, "catalog has opportunity id", opportunity_id is not None, first_item)
+    append_local_result(results, "catalog has employerProfileId", employer_profile_id is not None, first_item)
+
+    if opportunity_id is not None:
+        run_step(
+            results,
+            "add favorite opportunity",
+            "POST",
+            f"{base_url}/api/v1/favorites/opportunities/{opportunity_id}",
+            204,
+            headers=headers,
+        )
+
+        _, fav_opps_after_add = run_step(
+            results,
+            "list favorite opportunities after add",
+            "GET",
+            f"{base_url}/api/v1/favorites/opportunities",
+            200,
+            headers=headers,
+        )
+        fav_opps_ok = isinstance(fav_opps_after_add, list) and any(item.get("id") == opportunity_id for item in fav_opps_after_add)
+        append_local_result(results, "favorite opportunity persisted", fav_opps_ok, fav_opps_after_add)
+
+        run_step(
+            results,
+            "remove favorite opportunity",
+            "DELETE",
+            f"{base_url}/api/v1/favorites/opportunities/{opportunity_id}",
+            204,
+            headers=headers,
+        )
+
+        _, fav_opps_after_remove = run_step(
+            results,
+            "list favorite opportunities after remove",
+            "GET",
+            f"{base_url}/api/v1/favorites/opportunities",
+            200,
+            headers=headers,
+        )
+        fav_opps_removed_ok = isinstance(fav_opps_after_remove, list) and all(item.get("id") != opportunity_id for item in fav_opps_after_remove)
+        append_local_result(results, "favorite opportunity removed", fav_opps_removed_ok, fav_opps_after_remove)
+
+    if employer_profile_id is not None:
+        run_step(
+            results,
+            "add favorite employer",
+            "POST",
+            f"{base_url}/api/v1/favorites/employers/{employer_profile_id}",
+            204,
+            headers=headers,
+        )
+
+        _, fav_employers_after_add = run_step(
+            results,
+            "list favorite employers after add",
+            "GET",
+            f"{base_url}/api/v1/favorites/employers",
+            200,
+            headers=headers,
+        )
+        fav_employers_ok = isinstance(fav_employers_after_add, list) and any(item.get("id") == employer_profile_id for item in fav_employers_after_add)
+        append_local_result(results, "favorite employer persisted", fav_employers_ok, fav_employers_after_add)
+
+        run_step(
+            results,
+            "remove favorite employer",
+            "DELETE",
+            f"{base_url}/api/v1/favorites/employers/{employer_profile_id}",
+            204,
+            headers=headers,
+        )
+
+        _, fav_employers_after_remove = run_step(
+            results,
+            "list favorite employers after remove",
+            "GET",
+            f"{base_url}/api/v1/favorites/employers",
+            200,
+            headers=headers,
+        )
+        fav_employers_removed_ok = isinstance(fav_employers_after_remove, list) and all(item.get("id") != employer_profile_id for item in fav_employers_after_remove)
+        append_local_result(results, "favorite employer removed", fav_employers_removed_ok, fav_employers_after_remove)
+
+    return print_summary(results)
+
+
+def run_contacts_mode(base_url: str) -> int:
+    results: list[StepResult] = []
+
+    applicant_a_identity, applicant_a_token, _ = auth_flow(results, base_url, "applicant")
+    if not applicant_a_token:
+        return print_summary(results)
+
+    applicant_b_identity, applicant_b_token, _ = auth_flow(results, base_url, "applicant")
+    if not applicant_b_token:
+        return print_summary(results)
+
+    headers_a = {"Authorization": f"Bearer {applicant_a_token}"}
+    headers_b = {"Authorization": f"Bearer {applicant_b_token}"}
+
+    _, me_b_payload = run_step(
+        results,
+        "me applicant b",
+        "GET",
+        f"{base_url}/api/v1/me",
+        200,
+        headers=headers_b,
+    )
+    applicant_b_user_id = me_b_payload.get("id") if isinstance(me_b_payload, dict) else None
+    append_local_result(results, "applicant b user id resolved", applicant_b_user_id is not None, me_b_payload)
+
+    if applicant_b_user_id is None:
+        return print_summary(results)
+
+    _, create_payload = run_step(
+        results,
+        "create contact request",
+        "POST",
+        f"{base_url}/api/v1/contacts/requests",
+        200,
+        json_body={"addresseeUserId": applicant_b_user_id},
+        headers=headers_a,
+    )
+    create_ok = isinstance(create_payload, dict) and create_payload.get("status") == "pending"
+    append_local_result(results, "contact request pending", create_ok, create_payload)
+
+    _, list_b_payload = run_step(
+        results,
+        "list contacts b",
+        "GET",
+        f"{base_url}/api/v1/contacts",
+        200,
+        headers=headers_b,
+    )
+    list_b_ok = isinstance(list_b_payload, list) and len(list_b_payload) > 0
+    append_local_result(results, "contacts list b non-empty", list_b_ok, list_b_payload)
+
+    contact_id = None
+    if isinstance(list_b_payload, list):
+        for item in list_b_payload:
+            if item.get("requesterUserId") == create_payload.get("requesterUserId") and item.get("addresseeUserId") == create_payload.get("addresseeUserId"):
+                contact_id = item.get("id")
+                break
+
+    append_local_result(results, "contact id found", contact_id is not None, list_b_payload)
+
+    if contact_id is None:
+        return print_summary(results)
+
+    _, accept_payload = run_step(
+        results,
+        "accept contact request",
+        "PATCH",
+        f"{base_url}/api/v1/contacts/{contact_id}",
+        200,
+        json_body={"status": "accepted"},
+        headers=headers_b,
+    )
+    accept_ok = isinstance(accept_payload, dict) and accept_payload.get("status") == "accepted"
+    append_local_result(results, "contact accepted", accept_ok, accept_payload)
+
+    _, list_a_payload = run_step(
+        results,
+        "list contacts a",
+        "GET",
+        f"{base_url}/api/v1/contacts",
+        200,
+        headers=headers_a,
+    )
+    list_a_ok = isinstance(list_a_payload, list) and any(item.get("id") == contact_id and item.get("status") == "accepted" for item in list_a_payload)
+    append_local_result(results, "contacts list a contains accepted", list_a_ok, list_a_payload)
+
+    return print_summary(results)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Smoke test runner for Trampolin backend API")
     parser.add_argument("--base-url", default="http://127.0.0.1:8080", help="Backend base URL")
-    parser.add_argument("--mode", choices=["stub", "auth", "profiles", "catalog", "employer_dashboard", "applications", "curator"], default="auth")
+    parser.add_argument(
+        "--mode",
+        choices=[
+            "stub",
+            "auth",
+            "profiles",
+            "catalog",
+            "employer_dashboard",
+            "applications",
+            "curator",
+            "privacy",
+            "favorites",
+            "contacts",
+        ],
+        default="auth",
+    )
     parser.add_argument("--role", choices=["applicant", "employer"], default="applicant")
     args = parser.parse_args()
 
@@ -512,6 +955,12 @@ def main() -> int:
         return run_applications_mode(args.base_url)
     if args.mode == "curator":
         return run_curator_mode(args.base_url)
+    if args.mode == "privacy":
+        return run_privacy_mode(args.base_url)
+    if args.mode == "favorites":
+        return run_favorites_mode(args.base_url)    
+    if args.mode == "contacts":
+        return run_contacts_mode(args.base_url)
     return run_profiles_mode(args.base_url, args.role)
 
 
