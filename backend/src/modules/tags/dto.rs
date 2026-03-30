@@ -11,3 +11,13 @@ pub struct TagResponse {
     pub is_system: bool,
     pub is_active: bool,
 }
+
+
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagCreateRequest {
+    pub name: String,
+    pub tag_type: TagType,
+}

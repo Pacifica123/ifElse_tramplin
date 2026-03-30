@@ -25,6 +25,7 @@ pub struct OpportunitySummaryRow {
     pub address_text: Option<String>,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
+    pub event_date: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -481,7 +482,8 @@ fn summary_select_sql(where_clause: &'static str) -> &'static str {
                 coalesce(c.city_name, ac.city_name) as city_name,
                 a.full_address as address_text,
                 coalesce(c.latitude, a.latitude) as latitude,
-                coalesce(c.longitude, a.longitude) as longitude
+                coalesce(c.longitude, a.longitude) as longitude,
+                o.event_date
             from opportunities o
             left join employer_profiles ep on ep.id = o.employer_profile_id
             left join cities c on c.id = o.city_id
@@ -511,7 +513,8 @@ fn summary_select_sql(where_clause: &'static str) -> &'static str {
                 coalesce(c.city_name, ac.city_name) as city_name,
                 a.full_address as address_text,
                 coalesce(c.latitude, a.latitude) as latitude,
-                coalesce(c.longitude, a.longitude) as longitude
+                coalesce(c.longitude, a.longitude) as longitude,
+                o.event_date
             from opportunities o
             join employer_profiles ep on ep.id = o.employer_profile_id
             left join cities c on c.id = o.city_id

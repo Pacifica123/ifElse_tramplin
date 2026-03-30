@@ -6,6 +6,7 @@ use crate::models::ApplicantProfileRow;
 #[serde(rename_all = "snake_case")]
 pub enum ApplicantProfileVisibilityScope {
     Owner,
+    EmployerApplicationAccess,
     Contact,
     AllAuthorized,
     Hidden,

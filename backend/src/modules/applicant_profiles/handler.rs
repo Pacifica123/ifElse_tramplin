@@ -48,6 +48,16 @@ pub async fn get_by_id(
     Ok(Json(payload))
 }
 
+pub async fn get_for_employer_by_id(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(applicant_profile_id): Path<i64>,
+) -> AppResult<Json<ApplicantProfileViewResponse>> {
+    let employer_user_id = resolve_user_id(&state, &headers).await?;
+    let payload = service::get_visible_profile_for_employer(&state.db, employer_user_id, applicant_profile_id).await?;
+    Ok(Json(payload))
+}
+
 async fn resolve_user_id(state: &AppState, headers: &HeaderMap) -> AppResult<i64> {
     let raw_token = extract_bearer_token(headers)?;
     let claims = token::decode_access_token(raw_token, &state.settings.auth)?;

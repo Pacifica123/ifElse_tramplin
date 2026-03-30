@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     Json,
 };
 
@@ -203,6 +203,7 @@ fn map_summary(row: crate::modules::opportunities::repo::OpportunitySummaryRow) 
         address_text: row.address_text,
         latitude: row.latitude,
         longitude: row.longitude,
+        event_date: row.event_date,
         is_favorite: None,
     }
 }
@@ -226,13 +227,13 @@ fn map_details(row: crate::modules::opportunities::repo::OpportunityDetailsRow) 
         address_text: row.address_text,
         latitude: row.latitude,
         longitude: row.longitude,
+        event_date: row.event_date,
         is_favorite: None,
         full_description: row.full_description,
         employment_type: row.employment_type,
         level: row.level,
         published_at: row.published_at,
         expires_at: row.expires_at,
-        event_date: row.event_date,
         contact_info: row.contact_info,
         resource_links: json_array_to_strings(row.resource_links),
         media: json_array_to_strings(row.media),

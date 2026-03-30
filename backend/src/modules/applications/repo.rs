@@ -153,6 +153,32 @@ pub async fn list_my_applications(
     Ok((items, total))
 }
 
+
+pub async fn employer_has_application_from_applicant(
+    pool: &PgPool,
+    employer_user_id: i64,
+    applicant_profile_id: i64,
+) -> Result<bool, sqlx::Error> {
+    let exists: bool = sqlx::query_scalar(
+        r#"
+        select exists(
+            select 1
+            from applications a
+            join opportunities o on o.id = a.opportunity_id
+            join employer_profiles ep on ep.id = o.employer_profile_id
+            where ep.user_id = $1
+              and a.applicant_profile_id = $2
+        )
+        "#,
+    )
+    .bind(employer_user_id)
+    .bind(applicant_profile_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(exists)
+}
+
 pub async fn find_owned_opportunity(
     pool: &PgPool,
     employer_user_id: i64,

@@ -4,7 +4,9 @@ use crate::{
     error::{AppError, AppResult},
     models::{ApplicantProfileRow, ContactStatus},
     modules::{
+        applications::repo as applications_repo,
         contacts::repo as contacts_repo,
+        employer_profiles::repo as employer_repo,
         privacy_settings::{dto::PrivacySettingsResponse, repo as privacy_repo},
     },
 };
@@ -66,6 +68,49 @@ pub async fn update_current_profile(
     .map_err(AppError::from)
 }
 
+
+pub async fn get_visible_profile_for_employer(
+    pool: &PgPool,
+    employer_user_id: i64,
+    applicant_profile_id: i64,
+) -> AppResult<ApplicantProfileViewResponse> {
+    employer_repo::find_by_user_id(pool, employer_user_id)
+        .await?
+        .ok_or_else(|| AppError::forbidden("Employer profile not found"))?;
+
+    let profile = repo::find_by_id(pool, applicant_profile_id)
+        .await?
+        .ok_or_else(|| AppError::not_found("Applicant profile not found"))?;
+
+    let has_access = applications_repo::employer_has_application_from_applicant(
+        pool,
+        employer_user_id,
+        applicant_profile_id,
+    )
+    .await?;
+
+    if !has_access {
+        return Err(AppError::forbidden(
+            "Employer can view only applicants who responded to own opportunities",
+        ));
+    }
+
+    Ok(ApplicantProfileViewResponse {
+        id: profile.id,
+        user_id: profile.user_id,
+        full_name: profile.full_name.clone().unwrap_or_default(),
+        university: profile.university.clone(),
+        study_course: profile.study_course.clone(),
+        graduation_year: profile.graduation_year,
+        about: profile.about.clone(),
+        resume_text: profile.resume_text.clone(),
+        portfolio_links: json_value_to_vec_string(&profile.portfolio_links),
+        skills: json_value_to_vec_string(&profile.skills),
+        visibility_scope: ApplicantProfileVisibilityScope::EmployerApplicationAccess,
+        career_interests_visible: false,
+    })
+}
+
 pub async fn get_visible_profile(
     pool: &PgPool,
     viewer_user_id: i64,
@@ -104,6 +149,7 @@ pub async fn get_visible_profile(
 
     let resume_visible = match scope {
         ApplicantProfileVisibilityScope::Owner => true,
+        ApplicantProfileVisibilityScope::EmployerApplicationAccess => true,
         ApplicantProfileVisibilityScope::Contact => privacy.resume_visible_to_contacts,
         ApplicantProfileVisibilityScope::AllAuthorized => privacy.resume_visible_to_all_auth,
         ApplicantProfileVisibilityScope::Hidden => false,
@@ -111,6 +157,7 @@ pub async fn get_visible_profile(
 
     let career_interests_visible = match scope {
         ApplicantProfileVisibilityScope::Owner => true,
+        ApplicantProfileVisibilityScope::EmployerApplicationAccess => false,
         ApplicantProfileVisibilityScope::Contact => privacy.applications_visible_to_contacts,
         ApplicantProfileVisibilityScope::AllAuthorized => false,
         ApplicantProfileVisibilityScope::Hidden => false,

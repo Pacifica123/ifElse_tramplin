@@ -655,7 +655,8 @@ fn opportunities_query_builder(count_only: bool) -> QueryBuilder<'static, Postgr
                 coalesce(c.city_name, ac.city_name) as city_name,
                 a.full_address as address_text,
                 coalesce(c.latitude, a.latitude) as latitude,
-                coalesce(c.longitude, a.longitude) as longitude
+                coalesce(c.longitude, a.longitude) as longitude,
+                o.event_date
             from opportunities o
             join employer_profiles ep on ep.id = o.employer_profile_id
             left join cities c on c.id = o.city_id

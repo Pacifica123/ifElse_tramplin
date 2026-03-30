@@ -151,6 +151,7 @@ pub struct OpportunitySummaryResponse {
     pub address_text: Option<String>,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
+    pub event_date: Option<DateTime<Utc>>,
     pub is_favorite: Option<bool>,
 }
 

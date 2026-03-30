@@ -36,3 +36,35 @@ pub async fn list_active_tags(pool: &PgPool) -> Result<Vec<TagRow>, sqlx::Error>
     .fetch_all(pool)
     .await
 }
+
+
+pub async fn insert_tag(
+    pool: &PgPool,
+    name: &str,
+    tag_type: TagType,
+    created_by_user_id: i64,
+) -> Result<TagRow, sqlx::Error> {
+    sqlx::query_as::<_, TagRow>(
+        r#"
+        insert into tags (
+            name,
+            tag_type,
+            created_by_user_id,
+            is_system,
+            is_active
+        )
+        values ($1, $2, $3, false, true)
+        returning
+            id,
+            name,
+            tag_type,
+            is_system,
+            is_active
+        "#,
+    )
+    .bind(name)
+    .bind(tag_type)
+    .bind(created_by_user_id)
+    .fetch_one(pool)
+    .await
+}

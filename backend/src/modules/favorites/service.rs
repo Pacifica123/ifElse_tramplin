@@ -82,6 +82,7 @@ fn map_summary(row: OpportunitySummaryRow) -> OpportunitySummaryResponse {
         address_text: row.address_text,
         latitude: row.latitude,
         longitude: row.longitude,
+        event_date: row.event_date,
         is_favorite: Some(true),
     }
 }
