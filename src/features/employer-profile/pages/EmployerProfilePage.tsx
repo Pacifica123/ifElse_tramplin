@@ -14,6 +14,7 @@ import {
   getEmployerVerificationRequest,
 } from '@/shared/api/employerDashboard';
 import { getErrorMessage } from '@/shared/api/errors';
+import { getReferenceCities } from '@/shared/api/reference';
 import { CITY_OPTIONS, getCityNameById } from '@/shared/config/locations';
 
 interface EmployerProfileDraft {
@@ -130,6 +131,12 @@ export function EmployerProfilePage() {
     retry: false,
   });
 
+  const citiesQuery = useQuery({
+    queryKey: ['reference-cities'],
+    queryFn: getReferenceCities,
+    retry: false,
+  });
+
   useEffect(() => {
     if (!profileQuery.data) return;
     const nextDraft = toDraft(profileQuery.data, user?.displayName);
@@ -160,6 +167,14 @@ export function EmployerProfilePage() {
 
   const socialLinks = splitLines(draft.socialLinksText);
   const officePhotos = splitLines(draft.officePhotosText);
+  const cityOptions = (citiesQuery.data?.length ? citiesQuery.data.map((city) => ({ id: city.id, name: city.cityName })) : CITY_OPTIONS);
+
+  const resolveCityName = (cityId?: string | number | null) => {
+    if (cityId === null || cityId === undefined || cityId === '') return '—';
+    const numericId = Number(cityId);
+    if (Number.isNaN(numericId)) return String(cityId);
+    return cityOptions.find((item) => item.id === numericId)?.name ?? getCityNameById(cityId);
+  };
 
   const effectiveVerificationStatus = profileQuery.data?.verificationStatus ?? 'pending';
   const verificationRequest = verificationRequestQuery.data;
@@ -286,7 +301,7 @@ export function EmployerProfilePage() {
                     disabled={!isEditing}
                   >
                     <option value="">Не выбран</option>
-                    {CITY_OPTIONS.map((city) => (
+                    {cityOptions.map((city) => (
                       <option key={city.id} value={city.id}>
                         {city.name}
                       </option>
@@ -415,7 +430,7 @@ export function EmployerProfilePage() {
 
               <div>
                 <div className={styles.muted}>Город</div>
-                <span>{getCityNameById(draft.cityId)}</span>
+                <span>{resolveCityName(draft.cityId)}</span>
               </div>
 
               <div>

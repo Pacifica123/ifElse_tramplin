@@ -1,10 +1,26 @@
 import { AxiosError } from 'axios';
-import { FormEvent, useState } from 'react';
+import { CSSProperties, FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { paths } from '@/app/router/paths';
+import type { UserRole } from '@/shared/types/common';
 
 type RegisterRole = 'applicant' | 'employer';
+
+function resolveRedirectByRole(role: UserRole) {
+  switch (role) {
+    case 'applicant':
+      return paths.applicantProfile;
+    case 'employer':
+      return paths.employerProfile;
+    case 'curator':
+      return paths.curatorDashboard;
+    case 'admin_curator':
+      return paths.adminCurators;
+    default:
+      return paths.home;
+  }
+}
 
 function readApiError(error: unknown) {
   if (error instanceof AxiosError) {
@@ -19,27 +35,140 @@ function readApiError(error: unknown) {
   return 'Не удалось выполнить регистрацию.';
 }
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function normalizeDisplayName(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function EyeIcon({ open }: { open: boolean }) {
+  if (open) {
+    return (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+        <path
+          d="M3 12C4.8 8.8 8 6.5 12 6.5C16 6.5 19.2 8.8 21 12C19.2 15.2 16 17.5 12 17.5C8 17.5 4.8 15.2 3 12Z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path
+        d="M3 3L21 21"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10.6 6.7C11.05 6.57 11.52 6.5 12 6.5C16 6.5 19.2 8.8 21 12C20.15 13.51 19.01 14.8 17.64 15.76"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6.42 9.18C5.08 10.1 3.95 11.39 3 12C4.8 15.2 8 17.5 12 17.5C12.48 17.5 12.95 17.43 13.4 17.3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.88 9.88C9.37 10.39 9.05 11.1 9.05 11.89C9.05 13.47 10.33 14.75 11.91 14.75C12.7 14.75 13.41 14.43 13.92 13.92"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const passwordWrapStyle: CSSProperties = {
+  position: 'relative',
+  width: '100%',
+};
+
+const passwordInputStyle: CSSProperties = {
+  paddingRight: '56px',
+};
+
+const toggleButtonStyle: CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  right: '14px',
+  transform: 'translateY(-50%)',
+  width: '32px',
+  height: '32px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  cursor: 'pointer',
+  color: '#6b7a90',
+  zIndex: 2,
+};
+
 export function RegisterPage() {
-  const { register } = useAuth();
+  const { register, user, isBootstrapping } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<RegisterRole>('applicant');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (isBootstrapping || !user) return;
+    navigate(resolveRedirectByRole(user.role), { replace: true });
+  }, [isBootstrapping, navigate, user]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedDisplayName = normalizeDisplayName(displayName);
+
+    if (!normalizedDisplayName) {
+      setError('Введите отображаемое имя.');
+      return;
+    }
+
+    if (!normalizedEmail) {
+      setError('Введите email.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Пароль должен содержать минимум 8 символов.');
+      return;
+    }
+
     setError(null);
     setIsSubmitting(true);
 
     try {
-      const user = await register({ email, displayName, password, role });
-      navigate(user.role === 'employer' ? paths.employerProfile : paths.applicantProfile, {
-        replace: true,
+      const authUser = await register({
+        email: normalizedEmail,
+        displayName: normalizedDisplayName,
+        password,
+        role,
       });
+      navigate(resolveRedirectByRole(authUser.role), { replace: true });
     } catch (err) {
       setError(readApiError(err));
     } finally {
@@ -55,7 +184,7 @@ export function RegisterPage() {
           <p>Создайте аккаунт и сразу выберите роль, с которой будете работать на платформе.</p>
         </div>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form" onSubmit={handleSubmit} noValidate>
           <label className="field">
             <span>Отображаемое имя</span>
             <input
@@ -63,8 +192,12 @@ export function RegisterPage() {
               type="text"
               placeholder="Например, Иван Петров"
               value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
+              onChange={(event) => {
+                setDisplayName(event.target.value);
+                if (error) setError(null);
+              }}
               required
+              maxLength={120}
             />
           </label>
 
@@ -74,25 +207,44 @@ export function RegisterPage() {
               autoComplete="email"
               name="email"
               type="email"
-              placeholder="name@example.com"
+              placeholder="name@gmail.com"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                if (error) setError(null);
+              }}
               required
             />
           </label>
 
           <label className="field">
             <span>Пароль</span>
-            <input
-              autoComplete="new-password"
-              name="password"
-              type="password"
-              placeholder="Минимум 8 символов"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              minLength={8}
-            />
+            <div style={passwordWrapStyle}>
+              <input
+                autoComplete="new-password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Минимум 8 символов"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (error) setError(null);
+                }}
+                required
+                minLength={8}
+                style={passwordInputStyle}
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                aria-pressed={showPassword}
+                style={toggleButtonStyle}
+              >
+                <EyeIcon open={showPassword} />
+              </button>
+            </div>
           </label>
 
           <fieldset className="role-switcher">
@@ -134,7 +286,6 @@ export function RegisterPage() {
           Выберите роль при регистрации и получите доступ к подходящему сценарию работы: профилю
           соискателя или кабинету работодателя.
         </p>
-
 
         <div className="auth-hero__art" aria-hidden="true">
           <svg viewBox="0 0 560 340" fill="none" xmlns="http://www.w3.org/2000/svg">

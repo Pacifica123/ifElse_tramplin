@@ -1,9 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { paths } from '@/app/router/paths';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { getErrorMessage } from '@/shared/api/errors';
+import {
+  cancelEventRegistration,
+  getMyEventRegistrations,
+  registerForEvent,
+} from '@/shared/api/eventRegistrations';
 import {
   getPublicOpportunities,
   type OpportunitySummary,
@@ -23,8 +28,6 @@ type EventItem = {
   shortDescription: string;
   tags: string[];
 };
-
-const STORAGE_KEY = 'trampolin.registeredEvents.v1';
 
 function formatKind(format: WorkFormat) {
   switch (format) {
@@ -71,29 +74,11 @@ function mapOpportunityToEvent(item: OpportunitySummary, tagsById: Map<number, s
 
 export function EventsPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const [query, setQuery] = useState('');
   const [format, setFormat] = useState<'all' | WorkFormat>('all');
   const [city, setCity] = useState('all');
-  const [registeredIds, setRegisteredIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        setRegisteredIds(parsed.filter((item): item is string => typeof item === 'string'));
-      }
-    } catch {
-      setRegisteredIds([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(registeredIds));
-  }, [registeredIds]);
 
   const tagsQuery = useQuery({
     queryKey: ['tags'],
@@ -110,6 +95,26 @@ export function EventsPage() {
       }),
   });
 
+  const registrationsQuery = useQuery({
+    queryKey: ['my-event-registrations'],
+    queryFn: () => getMyEventRegistrations({ upcomingOnly: false }),
+    enabled: user?.role === 'applicant',
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: (opportunityId: string) => registerForEvent(opportunityId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-event-registrations'] });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (opportunityId: string) => cancelEventRegistration(opportunityId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-event-registrations'] });
+    },
+  });
+
   const tagsById = useMemo(() => {
     const map = new Map<number, string>();
     for (const tag of tagsQuery.data ?? []) {
@@ -123,26 +128,19 @@ export function EventsPage() {
     [opportunitiesQuery.data?.items, tagsById],
   );
 
-  const cities = useMemo(() => {
-    return ['all', ...Array.from(new Set(backendEvents.map((item) => item.city)))];
-  }, [backendEvents]);
+  const registrationIds = useMemo(
+    () => new Set((registrationsQuery.data?.items ?? []).map((item) => String(item.opportunity.id))),
+    [registrationsQuery.data?.items],
+  );
 
-  const filtered = useMemo(() => {
-    return backendEvents.filter((item) => {
-      const matchesCity = city === 'all' || item.city === city;
-      return matchesCity;
-    });
-  }, [backendEvents, city]);
+  const cities = useMemo(() => ['all', ...Array.from(new Set(backendEvents.map((item) => item.city)))], [backendEvents]);
+
+  const filtered = useMemo(
+    () => backendEvents.filter((item) => city === 'all' || item.city === city),
+    [backendEvents, city],
+  );
 
   const isApplicant = user?.role === 'applicant';
-
-  const subscribe = (eventId: string) => {
-    setRegisteredIds((prev) => (prev.includes(eventId) ? prev : [...prev, eventId]));
-  };
-
-  const unsubscribe = (eventId: string) => {
-    setRegisteredIds((prev) => prev.filter((id) => id !== eventId));
-  };
 
   if (opportunitiesQuery.isError) {
     return <div>Не удалось загрузить мероприятия: {getErrorMessage(opportunitiesQuery.error)}</div>;
@@ -194,14 +192,12 @@ export function EventsPage() {
 
         <div className={styles.summaryCard}>
           <div className={styles.summaryLabel}>Формат</div>
-          <div className={styles.summaryText}>
-            {format === 'all' ? 'Любой' : formatKind(format)}
-          </div>
+          <div className={styles.summaryText}>{format === 'all' ? 'Любой' : formatKind(format)}</div>
         </div>
 
         <div className={styles.summaryCard}>
           <div className={styles.summaryLabel}>Мои записи</div>
-          <div className={styles.summaryText}>{registeredIds.length}</div>
+          <div className={styles.summaryText}>{registrationsQuery.data?.total ?? registrationIds.size}</div>
         </div>
       </section>
 
@@ -209,7 +205,10 @@ export function EventsPage() {
 
       <section className={styles.list}>
         {filtered.map((item) => {
-          const isRegistered = registeredIds.includes(item.id);
+          const isRegistered = registrationIds.has(item.id);
+          const isMutating =
+            (registerMutation.isPending && registerMutation.variables === item.id) ||
+            (cancelMutation.isPending && cancelMutation.variables === item.id);
 
           return (
             <article key={item.id} className={styles.card}>
@@ -259,29 +258,38 @@ export function EventsPage() {
                     <button
                       className="btn btn--secondary"
                       type="button"
-                      onClick={() => unsubscribe(item.id)}
+                      onClick={() => cancelMutation.mutate(item.id)}
+                      disabled={isMutating}
                     >
-                      Отписаться
+                      {isMutating ? 'Отписываем…' : 'Отписаться'}
                     </button>
                   ) : (
-                    <button className="btn" type="button" onClick={() => subscribe(item.id)}>
-                      Записаться
+                    <button className="btn" type="button" onClick={() => registerMutation.mutate(item.id)} disabled={isMutating}>
+                      {isMutating ? 'Записываем…' : 'Записаться'}
                     </button>
                   )
                 ) : (
-                  <Link className="btn" to={paths.opportunity(item.id)}>
-                    Подробнее
-                  </Link>
+                  <span className="btn btn--secondary" style={{ cursor: 'default' }}>
+                    Запись доступна соискателям
+                  </span>
                 )}
+
+                <Link className="btn btn--secondary" to={paths.opportunity(item.id)}>
+                  Открыть карточку
+                </Link>
               </div>
             </article>
           );
         })}
-
-        {!opportunitiesQuery.isLoading && !filtered.length && (
-          <div className={styles.emptyState}>По текущим фильтрам мероприятий не найдено.</div>
-        )}
       </section>
+
+      {!opportunitiesQuery.isLoading && !filtered.length ? (
+        <div className={styles.emptyState}>По выбранным параметрам мероприятий не найдено.</div>
+      ) : null}
+
+      {registerMutation.isError ? <div className={styles.emptyState}>{getErrorMessage(registerMutation.error)}</div> : null}
+      {cancelMutation.isError ? <div className={styles.emptyState}>{getErrorMessage(cancelMutation.error)}</div> : null}
+      {registrationsQuery.isError ? <div className={styles.emptyState}>{getErrorMessage(registrationsQuery.error)}</div> : null}
     </div>
   );
 }

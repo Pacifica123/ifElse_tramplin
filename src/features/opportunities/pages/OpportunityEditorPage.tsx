@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { paths } from '@/app/router/paths';
 import { getErrorMessage } from '@/shared/api/errors';
+import { getReferenceAddresses, getReferenceCities } from '@/shared/api/reference';
 import { CITY_OPTIONS, getCityNameById } from '@/shared/config/locations';
 import {
   createOpportunity,
@@ -168,6 +169,21 @@ export function OpportunityEditorPage() {
     queryFn: getTags,
   });
 
+  const citiesQuery = useQuery({
+    queryKey: ['reference-cities'],
+    queryFn: getReferenceCities,
+    retry: false,
+  });
+
+  const selectedCityId = draft.cityId.trim() ? Number(draft.cityId) : undefined;
+
+  const addressesQuery = useQuery({
+    queryKey: ['reference-addresses', selectedCityId ?? 'all'],
+    queryFn: () => getReferenceAddresses(selectedCityId),
+    enabled: draft.workFormat !== 'remote',
+    retry: false,
+  });
+
   const detailsQuery = useQuery({
     queryKey: ['opportunity', 'editor', id],
     queryFn: () => getPublicOpportunityById(id ?? ''),
@@ -196,6 +212,18 @@ export function OpportunityEditorPage() {
       navigate(paths.employerOpportunities);
     },
   });
+
+  const cityOptions = citiesQuery.data?.length
+    ? citiesQuery.data.map((city) => ({ id: city.id, name: city.cityName }))
+    : CITY_OPTIONS;
+  const addressOptions = addressesQuery.data ?? [];
+
+  const resolveCityName = (cityId?: string | number | null) => {
+    if (cityId === null || cityId === undefined || cityId === '') return '—';
+    const numericId = Number(cityId);
+    if (Number.isNaN(numericId)) return String(cityId);
+    return cityOptions.find((item) => item.id === numericId)?.name ?? getCityNameById(cityId);
+  };
 
   const pageTitle = useMemo(
     () => (isEditMode ? 'Редактирование возможности' : 'Создание возможности'),
@@ -307,7 +335,7 @@ export function OpportunityEditorPage() {
             <label className="field">
               <span>Город</span>
               <select value={draft.cityId} onChange={(e) => updateField('cityId', e.target.value)}>
-                {CITY_OPTIONS.map((city) => (
+                {cityOptions.map((city) => (
                   <option key={city.id} value={city.id}>
                     {city.name}
                   </option>
@@ -315,14 +343,31 @@ export function OpportunityEditorPage() {
               </select>
             </label>
           ) : (
-            <label className="field">
-              <span>ID адреса</span>
-              <input
-                value={draft.addressId}
-                onChange={(e) => updateField('addressId', e.target.value)}
-                placeholder="Например, 1"
-              />
-            </label>
+            <>
+              <label className="field">
+                <span>Город адреса</span>
+                <select value={draft.cityId} onChange={(e) => updateField('cityId', e.target.value)}>
+                  <option value="">Выберите город</option>
+                  {cityOptions.map((city) => (
+                    <option key={city.id} value={city.id}>
+                      {city.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field">
+                <span>Адрес</span>
+                <select value={draft.addressId} onChange={(e) => updateField('addressId', e.target.value)}>
+                  <option value="">Выберите адрес</option>
+                  {addressOptions.map((address) => (
+                    <option key={address.id} value={address.id}>
+                      {address.fullAddress}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           )}
 
           <label className="field">
@@ -422,8 +467,10 @@ export function OpportunityEditorPage() {
       <section style={{ ...sectionStyle, gap: 12 }}>
         <div style={{ color: '#667085', fontSize: 14 }}>
           {draft.workFormat === 'remote'
-            ? `Карточка будет привязана к городу: ${getCityNameById(draft.cityId)}.`
-            : 'Для офисного и гибридного формата используется ID адреса из базы.'}
+            ? `Карточка будет привязана к городу: ${resolveCityName(draft.cityId)}.`
+            : addressOptions.length
+              ? 'Для офисного и гибридного формата используется выбранный адрес из справочника backend.'
+              : 'Для офисного и гибридного формата сначала выберите город, затем адрес.'}
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>

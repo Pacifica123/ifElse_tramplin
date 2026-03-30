@@ -946,5 +946,57 @@ select {
 .topbar__account:hover {
   text-decoration: underline;
 }
-  
+  .field__error {
+  display: block;
+  margin-top: 6px;
+  color: #c62828;
+  font-size: 0.875rem;
+}
+
+.field {
+  display: block;
+}
+
+.field__password-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.field__control {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.field__control--with-toggle {
+  padding-right: 56px;
+}
+
+.field__toggle--inside {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: #6b7a90;
+  padding: 0;
+  z-index: 2;
+}
+
+.field__toggle--inside:hover {
+  color: #4c7fff;
+}
+
+.field__toggle--inside:focus-visible {
+  outline: 2px solid #4c7fff;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 }

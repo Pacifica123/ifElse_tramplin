@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { getErrorMessage } from '@/shared/api/errors';
+import { paths } from '@/app/router/paths';
 import {
   getEmployerApplicationsForOpportunity,
   updateApplicationStatus,
@@ -74,10 +76,6 @@ export function EmployerApplicationsPage() {
       <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 14 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 42 }}>Отклики на мои возможности</h1>
-          <p style={{ color: '#667085', marginTop: 10 }}>
-            Страница подключена к <code>GET /employer/opportunities/{'{id}'}/applications</code> и
-            <code> PATCH /applications/{'{id}'}/status</code>.
-          </p>
         </div>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -108,11 +106,6 @@ export function EmployerApplicationsPage() {
           </select>
         </div>
 
-        {selectedOpportunity ? (
-          <div style={{ color: '#667085' }}>
-            Сейчас выбрана: <strong>{selectedOpportunity.title}</strong>
-          </div>
-        ) : null}
       </section>
 
       {!selectedOpportunityId ? (
@@ -123,7 +116,11 @@ export function EmployerApplicationsPage() {
 
       {applicationsQuery.isLoading ? <div>Загружаем отклики…</div> : null}
       {applicationsQuery.isError ? <div>Не удалось загрузить отклики: {getErrorMessage(applicationsQuery.error)}</div> : null}
-
+ {selectedOpportunity ? (
+          <div style={{ color: '#667085' }}>
+            Сейчас выбрана: <strong>{selectedOpportunity.title}</strong>
+          </div>
+        ) : null}
       {!applicationsQuery.isLoading && selectedOpportunityId && !items.length ? (
         <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24 }}>
           По выбранной возможности откликов пока нет.
@@ -169,6 +166,9 @@ export function EmployerApplicationsPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Link className="btn btn--secondary" to={paths.publicApplicant(item.applicantProfileId)}>
+              Открыть профиль
+            </Link>
             {(['accepted', 'reserve', 'rejected', 'pending'] as const).map((status) => (
               <button
                 key={status}

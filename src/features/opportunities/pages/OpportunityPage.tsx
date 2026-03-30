@@ -1,10 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { paths } from '@/app/router/paths';
 import { getErrorMessage } from '@/shared/api/errors';
 import { applyToOpportunity } from '@/shared/api/applications';
+import { cancelEventRegistration, getMyEventRegistrations, registerForEvent } from '@/shared/api/eventRegistrations';
+import {
+  addFavoriteEmployer,
+  addFavoriteOpportunity,
+  getFavoriteEmployers,
+  getFavoriteOpportunities,
+  removeFavoriteEmployer,
+  removeFavoriteOpportunity,
+} from '@/shared/api/favorites';
 import { getPublicOpportunityById, type OpportunityType, type WorkFormat } from '@/shared/api/opportunities';
 import { getTags } from '@/shared/api/tags';
 
@@ -36,6 +45,7 @@ function formatDate(value?: string | null) {
 export function OpportunityPage() {
   const { id } = useParams();
   const { isAuthenticated, user } = useAuth();
+  const queryClient = useQueryClient();
   const [coverLetter, setCoverLetter] = useState('');
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -50,11 +60,76 @@ export function OpportunityPage() {
     queryFn: getTags,
   });
 
+  const favoriteOpportunitiesQuery = useQuery({
+    queryKey: ['favorite-opportunities'],
+    queryFn: getFavoriteOpportunities,
+    enabled: isAuthenticated,
+  });
+
+  const favoriteEmployersQuery = useQuery({
+    queryKey: ['favorite-employers'],
+    queryFn: getFavoriteEmployers,
+    enabled: isAuthenticated,
+  });
+
+  const eventRegistrationsQuery = useQuery({
+    queryKey: ['my-event-registrations', 'opportunity-page'],
+    queryFn: () => getMyEventRegistrations({ upcomingOnly: false }),
+    enabled: isAuthenticated && user?.role === 'applicant',
+  });
+
   const applyMutation = useMutation({
     mutationFn: () => applyToOpportunity(id!, { coverLetter: coverLetter.trim() || undefined }),
     onSuccess: () => {
       setSuccess('Отклик отправлен. Теперь его можно увидеть в разделе «Мои отклики».');
       setCoverLetter('');
+    },
+  });
+
+  const registerForEventMutation = useMutation({
+    mutationFn: () => registerForEvent(id!),
+    onSuccess: () => {
+      setSuccess('Запись на мероприятие сохранена.');
+      queryClient.invalidateQueries({ queryKey: ['my-event-registrations'] });
+      queryClient.invalidateQueries({ queryKey: ['my-event-registrations', 'opportunity-page'] });
+    },
+  });
+
+  const cancelEventRegistrationMutation = useMutation({
+    mutationFn: () => cancelEventRegistration(id!),
+    onSuccess: () => {
+      setSuccess('Запись на мероприятие отменена.');
+      queryClient.invalidateQueries({ queryKey: ['my-event-registrations'] });
+      queryClient.invalidateQueries({ queryKey: ['my-event-registrations', 'opportunity-page'] });
+    },
+  });
+
+  const toggleOpportunityFavoriteMutation = useMutation({
+    mutationFn: async (payload: { opportunityId: number; isFavorite: boolean }) => {
+      if (payload.isFavorite) {
+        await removeFavoriteOpportunity(payload.opportunityId);
+        return;
+      }
+      await addFavoriteOpportunity(payload.opportunityId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorite-opportunities'] });
+      queryClient.invalidateQueries({ queryKey: ['public-opportunities'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunity', id] });
+    },
+  });
+
+  const toggleEmployerFavoriteMutation = useMutation({
+    mutationFn: async (payload: { employerProfileId: number; isFavorite: boolean }) => {
+      if (payload.isFavorite) {
+        await removeFavoriteEmployer(payload.employerProfileId);
+        return;
+      }
+      await addFavoriteEmployer(payload.employerProfileId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorite-employers'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunity', id] });
     },
   });
 
@@ -75,6 +150,13 @@ export function OpportunityPage() {
   const item = opportunityQuery.data;
   const contactInfo = item.contactInfo ?? {};
   const canApply = isAuthenticated && user?.role === 'applicant' && item.opportunityType !== 'event';
+  const canRegisterForEvent = isAuthenticated && user?.role === 'applicant' && item.opportunityType === 'event';
+  const eventRegistrationIds = new Set((eventRegistrationsQuery.data?.items ?? []).map((entry) => entry.opportunity.id));
+  const isRegisteredForEvent = eventRegistrationIds.has(item.id);
+  const favoriteOpportunityIds = new Set((favoriteOpportunitiesQuery.data ?? []).map((entry) => entry.id));
+  const favoriteEmployerIds = new Set((favoriteEmployersQuery.data ?? []).map((entry) => entry.id));
+  const isOpportunityFavorite = favoriteOpportunityIds.has(item.id);
+  const isEmployerFavorite = favoriteEmployerIds.has(item.employerProfileId);
 
   return (
     <div style={{ display: 'grid', gap: 20 }}>
@@ -106,6 +188,30 @@ export function OpportunityPage() {
             <span className="btn btn--secondary" style={{ cursor: 'default' }}>
               {formatLabels[item.workFormat]}
             </span>
+            {isAuthenticated ? (
+              <>
+                <button
+                  className="btn btn--secondary"
+                  type="button"
+                  disabled={toggleOpportunityFavoriteMutation.isPending}
+                  onClick={() =>
+                    toggleOpportunityFavoriteMutation.mutate({ opportunityId: item.id, isFavorite: isOpportunityFavorite })
+                  }
+                >
+                  {isOpportunityFavorite ? 'Убрать возможность из избранного' : 'Добавить возможность в избранное'}
+                </button>
+                <button
+                  className="btn btn--secondary"
+                  type="button"
+                  disabled={toggleEmployerFavoriteMutation.isPending}
+                  onClick={() =>
+                    toggleEmployerFavoriteMutation.mutate({ employerProfileId: item.employerProfileId, isFavorite: isEmployerFavorite })
+                  }
+                >
+                  {isEmployerFavorite ? 'Убрать работодателя из избранного' : 'Добавить работодателя в избранное'}
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
       </section>
@@ -193,10 +299,43 @@ export function OpportunityPage() {
             </article>
           ) : null}
 
+          {canRegisterForEvent ? (
+            <article style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24, display: 'grid', gap: 12 }}>
+              <h2 style={{ margin: 0 }}>Запись на мероприятие</h2>
+              <p style={{ margin: 0, color: '#667085' }}>
+                Эта кнопка подключена к <code>POST /opportunities/{'{id}'}/event-registration</code> и <code>DELETE /opportunities/{'{id}'}/event-registration</code>.
+              </p>
+              {isRegisteredForEvent ? (
+                <button
+                  className="btn btn--secondary"
+                  type="button"
+                  onClick={() => cancelEventRegistrationMutation.mutate()}
+                  disabled={cancelEventRegistrationMutation.isPending}
+                >
+                  {cancelEventRegistrationMutation.isPending ? 'Отписываем…' : 'Отменить запись'}
+                </button>
+              ) : (
+                <button className="btn" type="button" onClick={() => registerForEventMutation.mutate()} disabled={registerForEventMutation.isPending}>
+                  {registerForEventMutation.isPending ? 'Записываем…' : 'Записаться на мероприятие'}
+                </button>
+              )}
+              {success ? <p style={{ color: '#027a48', margin: 0 }}>{success}</p> : null}
+              {registerForEventMutation.isError ? <p style={{ color: '#b42318', margin: 0 }}>{getErrorMessage(registerForEventMutation.error)}</p> : null}
+              {cancelEventRegistrationMutation.isError ? <p style={{ color: '#b42318', margin: 0 }}>{getErrorMessage(cancelEventRegistrationMutation.error)}</p> : null}
+            </article>
+          ) : null}
+
           {!isAuthenticated ? (
             <article style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24 }}>
-              Чтобы откликнуться, нужно войти в аккаунт соискателя.
+              Чтобы откликнуться и сохранять избранное, нужно войти в аккаунт.
             </article>
+          ) : null}
+
+          {toggleOpportunityFavoriteMutation.isError ? (
+            <p style={{ color: '#b42318', margin: 0 }}>{getErrorMessage(toggleOpportunityFavoriteMutation.error)}</p>
+          ) : null}
+          {toggleEmployerFavoriteMutation.isError ? (
+            <p style={{ color: '#b42318', margin: 0 }}>{getErrorMessage(toggleEmployerFavoriteMutation.error)}</p>
           ) : null}
         </aside>
       </section>

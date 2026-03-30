@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { getErrorMessage } from '@/shared/api/errors';
+import {
+  getPrivacySettingsMe,
+  updatePrivacySettingsMe,
+  type PrivacySettings,
+} from '@/shared/api/privacySettings';
 import styles from '@/app/styles/ApplicantPrivacyPage.module.css';
 
-type PrivacyDraft = {
-  profileVisibleToAllAuth: boolean;
-  resumeVisibleToContacts: boolean;
-  resumeVisibleToAllAuth: boolean;
-  applicationsVisibleToContacts: boolean;
-  applicationsVisibleToAllAuth: boolean;
-};
-
-const STORAGE_KEY = 'trampolin.applicantPrivacyDraft.v1';
+type PrivacyDraft = PrivacySettings;
 
 export function ApplicantPrivacyPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const baseDraft = useMemo<PrivacyDraft>(
     () => ({
@@ -29,52 +29,59 @@ export function ApplicantPrivacyPage() {
   const [draft, setDraft] = useState<PrivacyDraft>(baseDraft);
   const [savedDraft, setSavedDraft] = useState<PrivacyDraft>(baseDraft);
   const [isEditing, setIsEditing] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const privacyQuery = useQuery({
+    queryKey: ['privacy-settings', 'me'],
+    queryFn: getPrivacySettingsMe,
+  });
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+    if (!privacyQuery.data) return;
+    setDraft(privacyQuery.data);
+    setSavedDraft(privacyQuery.data);
+  }, [privacyQuery.data]);
 
-      if (!raw) {
-        setDraft(baseDraft);
-        setSavedDraft(baseDraft);
-        return;
-      }
-
-      const parsed = JSON.parse(raw) as Partial<PrivacyDraft>;
-      const merged: PrivacyDraft = {
-        ...baseDraft,
-        ...parsed,
-      };
-
-      setDraft(merged);
-      setSavedDraft(merged);
-    } catch {
-      setDraft(baseDraft);
-      setSavedDraft(baseDraft);
-    }
-  }, [baseDraft]);
+  const saveMutation = useMutation({
+    mutationFn: updatePrivacySettingsMe,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['privacy-settings', 'me'], data);
+      setDraft(data);
+      setSavedDraft(data);
+      setIsEditing(false);
+      setSuccess('Настройки приватности сохранены');
+    },
+  });
 
   const updateField = <K extends keyof PrivacyDraft>(key: K, value: PrivacyDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
+    setSuccess(null);
   };
 
   const handleSave = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    setSavedDraft(draft);
-    setIsEditing(false);
+    saveMutation.mutate(draft);
   };
 
   const handleCancel = () => {
     setDraft(savedDraft);
     setIsEditing(false);
+    setSuccess(null);
   };
+
+  if (privacyQuery.isLoading) {
+    return <div>Загружаем настройки приватности…</div>;
+  }
+
+  if (privacyQuery.isError) {
+    return <div>Не удалось загрузить настройки: {getErrorMessage(privacyQuery.error)}</div>;
+  }
 
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.heroTop}>
           <div>
-            <h1 className={styles.title}>Настройки приватности</h1>
+            <h1 style={{ margin: 0, fontSize: 42, textAlign:'center' }}>Настройки приватности</h1>
           </div>
 
           <div className={styles.actions}>
@@ -87,13 +94,15 @@ export function ApplicantPrivacyPage() {
                 <button className="btn btn--secondary" type="button" onClick={handleCancel}>
                   Отменить
                 </button>
-                <button className="btn" type="button" onClick={handleSave}>
-                  Сохранить
+                <button className="btn" type="button" onClick={handleSave} disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? 'Сохраняем…' : 'Сохранить'}
                 </button>
               </>
             )}
           </div>
         </div>
+        {success ? <p style={{ color: '#027a48', margin: '12px 0 0' }}>{success}</p> : null}
+        {saveMutation.isError ? <p style={{ color: '#b42318', margin: '12px 0 0' }}>{getErrorMessage(saveMutation.error)}</p> : null}
       </section>
 
       <section className={styles.grid}>
@@ -236,14 +245,6 @@ export function ApplicantPrivacyPage() {
                 <strong>{draft.applicationsVisibleToAllAuth ? 'Да' : 'Нет'}</strong>
               </div>
             </div>
-          </article>
-
-          <article className={styles.card}>
-            <h2 className={styles.cardTitle}>Примечание</h2>
-            <p className={styles.note}>
-              Сейчас это локальная форма для фронта. Позже сюда можно подключить реальный
-              `GET/PATCH /privacy-settings/me`.
-            </p>
           </article>
         </div>
       </section>

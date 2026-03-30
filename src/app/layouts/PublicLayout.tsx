@@ -28,9 +28,9 @@ export function PublicLayout() {
         </Link>
 
         <nav className="nav">
+          {!user && <Link to={paths.login}>Вход</Link>}
           <Link to={paths.home}>Главная</Link>
           <Link to={paths.events}>Мероприятия</Link>
-          {!user && <Link to={paths.login}>Вход</Link>}
         </nav>
 
         <div className="topbar__user">

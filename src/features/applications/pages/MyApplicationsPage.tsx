@@ -34,11 +34,8 @@ export function MyApplicationsPage() {
   return (
     <div style={{ display: 'grid', gap: 20 }}>
       <section style={{ background: '#fff', border: '1px solid #d9e0ea', borderRadius: 24, padding: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 42 }}>Мои отклики</h1>
-        <p style={{ color: '#667085', marginTop: 10 }}>
-          Страница подключена к <code>GET /applications/me</code>. Пока backend отдаёт только сами отклики,
-          поэтому на фронте показываются статус, id возможности и сопроводительное письмо.
-        </p>
+        <h1 style={{ margin: 0, fontSize: 42, textAlign:'center' }}>Мои отклики</h1>
+
       </section>
 
       {!items.length ? (

@@ -13,6 +13,11 @@ export interface ApplicantProfile {
   skills: string[];
 }
 
+export interface ApplicantProfileView extends ApplicantProfile {
+  visibilityScope: 'owner' | 'contact' | 'all_authorized' | 'hidden';
+  careerInterestsVisible: boolean;
+}
+
 export interface ApplicantProfileUpdatePayload {
   fullName?: string;
   university?: string | null;
@@ -30,5 +35,15 @@ export async function getApplicantProfileMe() {
 
 export async function updateApplicantProfileMe(payload: ApplicantProfileUpdatePayload) {
   const { data } = await apiClient.patch<ApplicantProfile>('/applicant-profile/me', payload);
+  return data;
+}
+
+export async function getApplicantProfileById(applicantProfileId: number | string) {
+  const { data } = await apiClient.get<ApplicantProfileView>(`/applicant-profiles/${applicantProfileId}`);
+  return data;
+}
+
+export async function getEmployerVisibleApplicantProfileById(applicantProfileId: number | string) {
+  const { data } = await apiClient.get<ApplicantProfileView>(`/employer/applicant-profiles/${applicantProfileId}`);
   return data;
 }

@@ -53,6 +53,15 @@ export async function register(payload: RegisterPayload): Promise<AuthSession> {
   return mapAuthResponse(data);
 }
 
+export async function refresh(refreshToken: string): Promise<AuthSession> {
+  const { data } = await apiClient.post<BackendAuthResponse>('/auth/refresh', { refreshToken });
+  return mapAuthResponse(data);
+}
+
+export async function logout(refreshToken: string): Promise<void> {
+  await apiClient.post('/auth/logout', { refreshToken });
+}
+
 export async function getMe(): Promise<SessionUser> {
   const { data } = await apiClient.get<BackendUser>('/me');
   return mapUser(data);

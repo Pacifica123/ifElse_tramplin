@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { getMe, login as apiLogin, register as apiRegister } from '@/shared/api/auth';
+import { getMe, login as apiLogin, logout as apiLogout, refresh as apiRefresh, register as apiRegister } from '@/shared/api/auth';
 import { AUTH_STORAGE_KEY } from '@/shared/api/client';
 import type { AuthSession, SessionUser } from '@/shared/types/common';
 
@@ -63,17 +63,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
     saveSession(session);
   }, []);
 
-  const logout = useCallback(() => {
+  const clearAuthState = useCallback(() => {
     setUser(null);
     setAccessToken(null);
     setRefreshToken(null);
     clearSession();
   }, []);
 
+  const logout = useCallback(() => {
+    const currentRefreshToken = refreshToken ?? readStoredSession()?.refreshToken ?? null;
+    if (currentRefreshToken) {
+      void apiLogout(currentRefreshToken).catch(() => undefined);
+    }
+    clearAuthState();
+  }, [clearAuthState, refreshToken]);
+
   const hydrateMe = useCallback(async () => {
     const stored = readStoredSession();
     if (!stored?.accessToken) {
-      logout();
+      clearAuthState();
       return null;
     }
 
@@ -89,10 +97,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
       applySession(nextSession);
       return currentUser;
     } catch {
-      logout();
-      return null;
+      if (!stored.refreshToken) {
+        clearAuthState();
+        return null;
+      }
+
+      try {
+        const refreshedSession = await apiRefresh(stored.refreshToken);
+        applySession(refreshedSession);
+        const currentUser = await getMe();
+        applySession({
+          ...refreshedSession,
+          user: currentUser,
+        });
+        return currentUser;
+      } catch {
+        clearAuthState();
+        return null;
+      }
     }
-  }, [applySession, logout]);
+  }, [applySession, clearAuthState]);
 
   useEffect(() => {
     hydrateMe().finally(() => {
